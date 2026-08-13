@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Technical Documentation — Walltopia Preliminary Loads</title>
+  <meta name="description" content="Application manual and standard attachment details for Walltopia preliminary loads." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="assets/walltopia-logo.svg" />
+  <link rel="stylesheet" href="styles.css?v=wt124" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap">
+      <a class="brand" href="index.html">
+        <img class="logo" src="assets/walltopia-logo-white.svg" alt="Walltopia" />
+        <span class="tag">Preliminary&nbsp;<b>Loads</b></span>
+      </a>
+      <div class="spacer"></div>
+      <nav class="topnav" aria-label="Primary">
+        <a href="index.html">Load Calculator</a>
+        <a href="dashboard.html">My Projects</a>
+        <a href="technical-documentation.html" aria-current="page">Technical Documentation</a>
+        <a href="ask-engineer.html">Engineering Support</a>
+      </nav>
+      <div id="auth-slot"></div>
+    </div>
+  </header>
+
+  <main class="reader docs-reader">
+    <div class="reader-intro docs-intro">
+      <span class="ask-kicker">Reference library</span>
+      <h1>Technical Documentation</h1>
+      <p>Start with the application manual to understand the calculator workflow and results, then review the standard fixing details for the relevant supporting structure.</p>
+    </div>
+
+    <nav class="docs-nav" aria-label="Technical documentation sections">
+      <a href="#application-manual" class="active" data-doc-link="application-manual"><span>01</span> Application Manual</a>
+      <a href="#attachment-details" data-doc-link="attachment-details"><span>02</span> Attachment Details</a>
+    </nav>
+
+    <section class="doc-section" id="application-manual" data-doc-section>
+      <div class="doc-section-head">
+        <div><span class="doc-number">01</span><h2>Application Manual</h2></div>
+        <p>How to use the Walltopia Preliminary Loads Calculator, understand its inputs and results, export reports and review the technical limitations.</p>
+      </div>
+
+      <div class="subbar docs-tools">
+        <div class="grp book-nav-buttons">
+          <button class="tgl" id="manual-prev" type="button" aria-label="Previous manual page">← Previous</button>
+          <button class="tgl" id="manual-next" type="button" aria-label="Next manual page">Next →</button>
+        </div>
+        <div class="grp manual-zoom-controls">
+          <button class="tgl" id="manual-zoom-out" type="button" aria-label="Zoom manual out">−</button>
+          <button class="tgl" id="manual-zoom-fit" type="button">Fit page</button>
+          <button class="tgl" id="manual-zoom-in" type="button" aria-label="Zoom manual in">+</button>
+          <button class="tgl" id="manual-zoom-100" type="button" aria-label="Reset manual to default zoom" title="Reset to default size">100%</button>
+        </div>
+        <div class="grp"><select id="jump" aria-label="Go to manual page"></select></div>
+        <a class="dl" href="manuals/manual/walltopia-preliminary-loads-calculator-manual.pdf" download><button class="tgl" type="button">Download PDF</button></a>
+        <span class="count" id="count"></span>
+      </div>
+      <div class="manual-book">
+        <div class="manual-page-arrows" aria-label="Manual page controls">
+          <button id="manual-overlay-prev" class="manual-page-arrow manual-page-arrow-left" type="button" aria-label="Previous manual page">‹</button>
+          <button id="manual-overlay-next" class="manual-page-arrow manual-page-arrow-right" type="button" aria-label="Next manual page">›</button>
+        </div>
+        <div class="manual-scroll" id="manual-scroll">
+          <div id="pages" aria-live="polite" aria-label="Application manual book viewer"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section attachment-section" id="attachment-details" data-doc-section>
+      <div class="doc-section-head">
+        <div><span class="doc-number">02</span><h2>Standard Attachment Details</h2></div>
+        <p>Typical fixing details for concrete floor, concrete wall, steel column and masonry wall substrates. Confirm every fixing against the acting standard and existing structure.</p>
+      </div>
+
+      <div class="cadwrap">
+        <div class="cadtools">
+          <div class="grp">
+            <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+            <button id="zoom-reset" type="button">Fit width</button>
+            <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+            <button id="zoom-100" type="button" aria-label="Reset attachment details to default zoom" title="Reset to default size">100%</button>
+          </div>
+          <a href="manuals/attachment/standard-attachment-details.pdf?v=4" download><button type="button">Download PDF</button></a>
+        </div>
+        <div class="cadscroll" id="scroll">
+          <img id="sheet" src="manuals/attachment/sheet.png?v=4" draggable="false" alt="Coded standard attachment details, oriented landscape, for concrete floor, concrete wall, steel column and masonry wall substrates." />
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <div><b>Walltopia Preliminary Loads</b><span>Preliminary sizing only — not for construction.</span></div>
+      <nav aria-label="Footer"><a href="privacy.html">Privacy &amp; Cookies</a><a href="disclaimer.html">Engineering Disclaimer</a></nav>
+      <small>© 2026 Walltopia AD</small>
+    </div>
+  </footer>
+
+  <script src="api.js?v=wt6"></script>
+  <script src="auth-ui.js?v=wt10"></script>
+  <script src="manuals/manual/transcript.js"></script>
+  <script src="technical-documentation.js?v=wt18"></script>
+</body>
+</html>

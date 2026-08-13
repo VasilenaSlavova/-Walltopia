@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Standard Attachment Details</title>
+  <meta name="description" content="Standard attachment details for fixing Walltopia climbing structures to concrete floor, concrete wall, steel column and masonry wall substrates." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="assets/walltopia-logo.svg" />
+  <link rel="stylesheet" href="styles.css?v=wt124" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap">
+      <a class="brand" href="index.html">
+        <img class="logo" src="assets/walltopia-logo-white.svg" alt="Walltopia" />
+        <span class="tag">Preliminary&nbsp;<b>Loads</b></span>
+      </a>
+      <div class="spacer"></div>
+      <nav class="topnav" aria-label="Primary">
+        <a href="index.html">Load Calculator</a>
+        <a href="dashboard.html">My Projects</a>
+        <a href="technical-documentation.html" aria-current="page">Technical Documentation</a>
+        <a href="ask-engineer.html">Engineering Support</a>
+      </nav>
+      <div id="auth-slot"></div>
+    </div>
+  </header>
+
+  <main class="reader">
+    <div class="reader-intro">
+      <h2>Standard attachment details</h2>
+      <p>Typical fixing details for anchoring the climbing structure to <strong>concrete floor</strong>,
+        <strong>concrete wall</strong>, <strong>steel column</strong> and <strong>masonry wall</strong> substrates
+        (threaded rods, Hilti HIT-HY chemical anchors, box bolts, grade 8.8 bolts). Preliminary —
+        confirm every fixing against the acting standard and the existing structure. Scroll to pan; use the
+        zoom controls or scroll-wheel to inspect.</p>
+    </div>
+
+    <div class="cadwrap">
+      <div class="cadtools">
+        <div class="grp">
+          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+          <button id="zoom-reset" type="button">Fit width</button>
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="zoom-100" type="button">100%</button>
+        </div>
+        <a href="manuals/attachment/standard-attachment-details.pdf" download style="text-decoration:none"><button type="button">Download PDF</button></a>
+        <span class="info" id="zinfo"></span>
+      </div>
+      <div class="cadscroll" id="scroll">
+        <img id="sheet" src="manuals/attachment/sheet.png?v=2" draggable="false" alt="Coded standard attachment details drawing sheet, oriented landscape: fixing details for concrete floor, concrete wall, steel column and masonry wall substrates." />
+      </div>
+    </div>
+  </main>
+
+  <script src="api.js?v=wt4"></script>
+  <script src="auth-ui.js?v=wt10"></script>
+  <script>
+    (function () {
+      var scroll = document.getElementById("scroll");
+      var img = document.getElementById("sheet");
+      var info = document.getElementById("zinfo");
+      var natW = 0, scale = 1, fitScale = 1;
+
+      function apply() {
+        img.style.width = (natW * scale) + "px";
+        img.style.height = "auto";
+        info.textContent = Math.round(scale * 100) + "%";
+      }
+      function fit() {
+        var avail = scroll.clientWidth - 2;
+        fitScale = Math.max(0.25, natW ? avail / natW : 1);
+        scale = fitScale; apply();
+      }
+      function setScale(s, cx, cy) {
+        s = Math.max(0.25, Math.min(6, s));
+        // keep the point under the cursor stable
+        var rect = scroll.getBoundingClientRect();
+        var px = (cx == null ? scroll.clientWidth / 2 : cx - rect.left) + scroll.scrollLeft;
+        var py = (cy == null ? scroll.clientHeight / 2 : cy - rect.top) + scroll.scrollTop;
+        var ratio = s / scale;
+        scale = s; apply();
+        scroll.scrollLeft = px * ratio - (cx == null ? scroll.clientWidth / 2 : cx - rect.left);
+        scroll.scrollTop = py * ratio - (cy == null ? scroll.clientHeight / 2 : cy - rect.top);
+      }
+
+      img.addEventListener("load", function () { natW = img.naturalWidth; fit(); });
+      if (img.complete && img.naturalWidth) { natW = img.naturalWidth; fit(); }
+      window.addEventListener("resize", function () { if (Math.abs(scale - fitScale) < 1e-6) fit(); });
+
+      document.getElementById("zoom-in").onclick = function () { setScale(scale * 1.25); };
+      document.getElementById("zoom-out").onclick = function () { setScale(scale / 1.25); };
+      document.getElementById("zoom-reset").onclick = fit;
+      document.getElementById("zoom-100").onclick = function () { setScale(1); };
+
+      scroll.addEventListener("wheel", function (e) {
+        e.preventDefault();
+        setScale(scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX, e.clientY);
+      }, { passive: false });
+
+      // drag to pan
+      var down = false, sx, sy, sl, st;
+      scroll.addEventListener("pointerdown", function (e) {
+        e.preventDefault();
+        down = true; sx = e.clientX; sy = e.clientY; sl = scroll.scrollLeft; st = scroll.scrollTop;
+        scroll.classList.add("grabbing"); scroll.setPointerCapture(e.pointerId);
+      });
+      scroll.addEventListener("pointermove", function (e) {
+        if (!down) return;
+        scroll.scrollLeft = sl - (e.clientX - sx);
+        scroll.scrollTop = st - (e.clientY - sy);
+      });
+      scroll.addEventListener("pointerup", function () { down = false; scroll.classList.remove("grabbing"); });
+      scroll.addEventListener("pointercancel", function () { down = false; scroll.classList.remove("grabbing"); });
+      img.addEventListener("dragstart", function (e) { e.preventDefault(); });
+    })();
+  </script>
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <div><b>Walltopia Preliminary Loads</b><span>Preliminary sizing only — not for construction.</span></div>
+      <nav aria-label="Footer"><a href="privacy.html">Privacy &amp; Cookies</a><a href="disclaimer.html">Engineering Disclaimer</a></nav>
+      <small>© 2026 Walltopia AD</small>
+    </div>
+  </footer>
+
+</body>
+</html>

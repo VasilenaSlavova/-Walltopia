@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Walltopia Loads",
+    "slug": "walltopia-loads",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "walltopialoads",
+    "splash": {
+      "backgroundColor": "#212331"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.walltopia.loads",
+      "softwareKeyboardLayoutMode": "resize",
+      "usesCleartextTraffic": true
+    },
+    "extra": {
+      "//": "Set API_BASE to a URL the phone can reach: your machine's LAN IP (http://192.168.1.3:8787/api) or a deployed server.",
+      "apiBase": "http://172.20.10.2:8787/api"
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-font",
+      "expo-secure-store"
+    ]
+  }
+}

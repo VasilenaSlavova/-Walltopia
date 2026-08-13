@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Engineering Support — Walltopia Preliminary Loads</title>
+  <meta name="description" content="Send a technical inquiry to Walltopia with the inputs and results from a saved preliminary-load project." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="assets/walltopia-logo.svg" />
+  <link rel="stylesheet" href="styles.css?v=wt124" />
+</head>
+<body class="support-page">
+  <header class="masthead">
+    <div class="wrap">
+      <a class="brand" href="index.html">
+        <img class="logo" src="assets/walltopia-logo-white.svg" alt="Walltopia" />
+        <span class="tag">Preliminary&nbsp;<b>Loads</b></span>
+      </a>
+      <div class="spacer"></div>
+      <nav class="topnav" aria-label="Primary">
+        <a href="index.html">Load Calculator</a>
+        <a href="dashboard.html">My Projects</a>
+        <a href="technical-documentation.html">Technical Documentation</a>
+        <a href="ask-engineer.html" aria-current="page">Engineering Support</a>
+      </nav>
+      <div id="auth-slot"></div>
+    </div>
+  </header>
+
+  <main class="ask-page">
+    <div class="ask-head">
+      <div>
+        <span class="ask-kicker">Engineering Support</span>
+        <h1>Let's talk about your project</h1>
+        <p>Got a technical question? Send it through the form below. Your saved calculation will be included automatically.</p>
+      </div>
+      <a class="btn" href="dashboard.html">Back to projects</a>
+    </div>
+
+    <div id="ask-root">
+      <div class="dash-empty">Loading your projects…</div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <div><b>Walltopia Preliminary Loads</b><span>Preliminary sizing only — not for construction.</span></div>
+      <nav aria-label="Footer"><a href="privacy.html">Privacy &amp; Cookies</a><a href="disclaimer.html">Engineering Disclaimer</a></nav>
+      <small>© 2026 Walltopia AD</small>
+    </div>
+  </footer>
+
+  <script src="api.js?v=wt5"></script>
+  <script src="auth-ui.js?v=wt10"></script>
+  <script src="vendor/libphonenumber-min.js"></script>
+  <script src="vendor/phone-rules.js"></script>
+  <script src="ask-engineer.js?v=wt35"></script>
+</body>
+</html>

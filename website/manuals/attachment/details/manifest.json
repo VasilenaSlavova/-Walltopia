@@ -1,0 +1,212 @@
+[
+  {
+    "id": "CF-05",
+    "category": "concrete-floor",
+    "file": "concrete-floor-01.png",
+    "rotated_rect": [
+      996,
+      2963,
+      671,
+      937
+    ],
+    "size": [
+      695,
+      961
+    ]
+  },
+  {
+    "id": "CF-04",
+    "category": "concrete-floor",
+    "file": "concrete-floor-02.png",
+    "rotated_rect": [
+      1698,
+      2963,
+      671,
+      937
+    ],
+    "size": [
+      695,
+      961
+    ]
+  },
+  {
+    "id": "CF-03",
+    "category": "concrete-floor",
+    "file": "concrete-floor-03.png",
+    "rotated_rect": [
+      2421,
+      2968,
+      1117,
+      926
+    ],
+    "size": [
+      1141,
+      950
+    ]
+  },
+  {
+    "id": "CF-02",
+    "category": "concrete-floor",
+    "file": "concrete-floor-04.png",
+    "rotated_rect": [
+      3542,
+      2968,
+      1206,
+      926
+    ],
+    "size": [
+      1230,
+      950
+    ]
+  },
+  {
+    "id": "CF-01",
+    "category": "concrete-floor",
+    "file": "concrete-floor-05.png",
+    "rotated_rect": [
+      4752,
+      2968,
+      1026,
+      926
+    ],
+    "size": [
+      1050,
+      950
+    ]
+  },
+  {
+    "id": "CW-03",
+    "category": "concrete-wall",
+    "file": "concrete-wall-01.png",
+    "rotated_rect": [
+      2107,
+      2054,
+      1250,
+      769
+    ],
+    "size": [
+      1274,
+      793
+    ]
+  },
+  {
+    "id": "CW-02",
+    "category": "concrete-wall",
+    "file": "concrete-wall-02.png",
+    "rotated_rect": [
+      3377,
+      2054,
+      1123,
+      769
+    ],
+    "size": [
+      1147,
+      793
+    ]
+  },
+  {
+    "id": "CW-01",
+    "category": "concrete-wall",
+    "file": "concrete-wall-03.png",
+    "rotated_rect": [
+      4566,
+      2054,
+      1218,
+      769
+    ],
+    "size": [
+      1242,
+      793
+    ]
+  },
+  {
+    "id": "MW-02",
+    "category": "masonry-wall",
+    "file": "masonry-wall-01.png",
+    "rotated_rect": [
+      3185,
+      303,
+      1283,
+      694
+    ],
+    "size": [
+      1307,
+      718
+    ]
+  },
+  {
+    "id": "MW-01",
+    "category": "masonry-wall",
+    "file": "masonry-wall-02.png",
+    "rotated_rect": [
+      4500,
+      303,
+      1284,
+      694
+    ],
+    "size": [
+      1308,
+      718
+    ]
+  },
+  {
+    "id": "SC-04",
+    "category": "steel-column",
+    "file": "steel-column-01.png",
+    "rotated_rect": [
+      521,
+      1134,
+      1092,
+      765
+    ],
+    "size": [
+      1116,
+      789
+    ]
+  },
+  {
+    "id": "SC-03",
+    "category": "steel-column",
+    "file": "steel-column-02.png",
+    "rotated_rect": [
+      1646,
+      1134,
+      1246,
+      765
+    ],
+    "size": [
+      1270,
+      789
+    ]
+  },
+  {
+    "id": "SC-02",
+    "category": "steel-column",
+    "file": "steel-column-03.png",
+    "rotated_rect": [
+      2925,
+      1134,
+      1289,
+      765
+    ],
+    "size": [
+      1313,
+      789
+    ]
+  },
+  {
+    "id": "SC-01",
+    "category": "steel-column",
+    "file": "steel-column-04.png",
+    "rotated_rect": [
+      4248,
+      1134,
+      1536,
+      765
+    ],
+    "size": [
+      1560,
+      789
+    ]
+  }
+]

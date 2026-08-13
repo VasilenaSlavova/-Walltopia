@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manual — Applying Walltopia Preliminary Loads</title>
+  <meta name="description" content="How to apply Walltopia preliminary climber loads to existing structures — worked example, coordinate system, and special cases." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="assets/walltopia-logo.svg" />
+  <link rel="stylesheet" href="styles.css?v=wt124" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap">
+      <a class="brand" href="index.html">
+        <img class="logo" src="assets/walltopia-logo-white.svg" alt="Walltopia" />
+        <span class="tag">Preliminary&nbsp;<b>Loads</b></span>
+      </a>
+      <div class="spacer"></div>
+      <nav class="topnav" aria-label="Primary">
+        <a href="index.html">Load Calculator</a>
+        <a href="dashboard.html">My Projects</a>
+        <a href="technical-documentation.html" aria-current="page">Technical Documentation</a>
+        <a href="ask-engineer.html">Engineering Support</a>
+      </nav>
+      <div id="auth-slot"></div>
+    </div>
+  </header>
+
+  <main class="reader">
+    <div class="reader-intro">
+      <h2>Manual for applying Walltopia preliminary loads on existing structures</h2>
+      <p>Worked example, coordinate-system definitions, and the special cases for corner and
+        end columns. Preliminary loads — <strong>not for construction</strong>. This manual is an
+        inseparable part of the load tables used by the <a href="index.html">Load Calculator</a>.</p>
+    </div>
+
+    <div class="subbar">
+      <div class="grp">
+        <label for="jump">Go to page</label>
+        <select id="jump"></select>
+      </div>
+      <div class="grp">
+        <button class="tgl" id="toggle-transcripts" aria-pressed="true">Transcripts on</button>
+      </div>
+      <a class="dl" href="manuals/manual/page-01.png" download><button class="tgl" type="button">Download images</button></a>
+      <span class="count" id="count"></span>
+    </div>
+
+    <div id="pages"></div>
+  </main>
+
+  <script src="api.js?v=wt4"></script>
+  <script src="auth-ui.js?v=wt10"></script>
+  <script src="manuals/manual/transcript.js"></script>
+  <script>
+    (function () {
+      var PAGES = window.MANUAL_PAGES || [];
+      var pad = function (n) { return n < 10 ? "0" + n : "" + n; };
+      var root = document.getElementById("pages");
+      var jump = document.getElementById("jump");
+      document.getElementById("count").textContent = PAGES.length + " pages";
+
+      PAGES.forEach(function (p) {
+        var fig = document.createElement("figure");
+        fig.className = "page-figure";
+        fig.id = "p" + p.page;
+
+        var head = document.createElement("div");
+        head.className = "pnum";
+        head.textContent = "Page " + p.page + " of " + PAGES.length;
+        fig.appendChild(head);
+
+        var img = document.createElement("img");
+        img.src = "manuals/manual/page-" + pad(p.page) + ".png";
+        img.loading = p.page <= 2 ? "eager" : "lazy";
+        img.alt = "Manual page " + p.page + (p.text ? ": " + p.text.slice(0, 140) : "");
+        fig.appendChild(img);
+
+        if (p.text) {
+          var det = document.createElement("details");
+          var sum = document.createElement("summary");
+          sum.textContent = "Page text (transcript)";
+          var body = document.createElement("div");
+          body.className = "transcript";
+          body.textContent = p.text;
+          det.appendChild(sum); det.appendChild(body);
+          fig.appendChild(det);
+        }
+        root.appendChild(fig);
+
+        var opt = document.createElement("option");
+        opt.value = "p" + p.page; opt.textContent = "Page " + p.page;
+        jump.appendChild(opt);
+      });
+
+      jump.addEventListener("change", function () {
+        var el = document.getElementById(jump.value);
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      });
+
+      var tgl = document.getElementById("toggle-transcripts");
+      tgl.addEventListener("click", function () {
+        var on = tgl.getAttribute("aria-pressed") === "true";
+        tgl.setAttribute("aria-pressed", String(!on));
+        tgl.textContent = on ? "Transcripts off" : "Transcripts on";
+        document.body.classList.toggle("hide-transcripts", on);
+      });
+
+      // keep the jump selector in sync with the page in view
+      if ("IntersectionObserver" in window) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) { if (e.isIntersecting) jump.value = e.target.id; });
+        }, { rootMargin: "-45% 0px -50% 0px" });
+        document.querySelectorAll(".page-figure").forEach(function (f) { io.observe(f); });
+      }
+    })();
+  </script>
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <div><b>Walltopia Preliminary Loads</b><span>Preliminary sizing only — not for construction.</span></div>
+      <nav aria-label="Footer"><a href="privacy.html">Privacy &amp; Cookies</a><a href="disclaimer.html">Engineering Disclaimer</a></nav>
+      <small>© 2026 Walltopia AD</small>
+    </div>
+  </footer>
+
+</body>
+</html>

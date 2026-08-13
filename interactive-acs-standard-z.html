@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Интерактивна ACS геометрия</title>
+<style>
+  :root{--background:#f7f8fa;--foreground:#17202a;--card:#fff;--card-foreground:#17202a;--muted:#eef1f5;--muted-foreground:#64748b;--border:#d6dbe3;--input:#cbd5e1;--ring:#2563eb;--viz-series-1:#e30613;--viz-series-2:#2563eb;font-family:Arial,sans-serif;color-scheme:light dark}
+  @media(prefers-color-scheme:dark){:root{--background:#111318;--foreground:#f3f4f6;--card:#191d24;--card-foreground:#f3f4f6;--muted:#242a33;--muted-foreground:#aab4c3;--border:#475569;--input:#64748b;--ring:#60a5fa;--viz-series-1:#ff3341;--viz-series-2:#60a5fa}}
+  *{box-sizing:border-box} body{margin:0;padding:24px;background:var(--background);color:var(--foreground)}
+  main{width:min(1180px,100%);margin:0 auto}.viz-controls{display:flex;flex-wrap:wrap;gap:14px}.form-label{display:flex;flex-direction:column;gap:6px;font-weight:500}.form-select{font:inherit;color:var(--foreground);background:var(--card);border:1px solid var(--input);border-radius:8px;padding:9px 34px 9px 11px;min-width:150px}.form-select:focus{outline:2px solid var(--ring);outline-offset:2px}.text-small{font-size:13px}.text-muted{color:var(--muted-foreground)}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  @media(max-width:600px){body{padding:14px}.form-label{width:calc(50% - 7px)}.form-select{min-width:0;width:100%}}
+</style>
+</head>
+<body>
+<main>
+<div id="acs-geometry-interactive" class="is-intro">
+  <div class="viz-controls" aria-label="Геометрични параметри">
+    <label class="form-label" for="acs-a">A — стандартен отвор
+      <select class="form-select" id="acs-a">
+        <option value="4">4 m</option><option value="5">5 m</option><option value="6" selected>6 m</option><option value="7">7 m</option><option value="8">8 m</option>
+      </select>
+      <output id="acs-a-out" class="sr-only">6 m</output>
+    </label>
+    <label class="form-label" for="acs-x">X — стандартен надвес
+      <select class="form-select" id="acs-x">
+        <option value="1" selected>1 m</option><option value="2">2 m</option><option value="3">3 m</option><option value="4">4 m</option><option value="5">5 m</option><option value="6">6 m</option><option value="7">7 m</option>
+      </select>
+      <output id="acs-x-out" class="sr-only">1 m</output>
+    </label>
+    <label class="form-label" for="acs-height">Височина на стената
+      <select class="form-select" id="acs-height">
+        <option value="8">8 m</option><option value="9">9 m</option><option value="10">10 m</option><option value="11">11 m</option><option value="12" selected>12 m</option><option value="13">13 m</option><option value="14">14 m</option><option value="15">15 m</option><option value="16">16 m</option>
+      </select>
+    </label>
+    <label class="form-label" for="acs-scheme">Схема на закрепване
+      <select class="form-select" id="acs-scheme"><option value="3" selected>3 нива</option></select>
+    </label>
+  </div>
+
+  <svg class="acs-diagram" viewBox="0 0 900 560" role="img" aria-labelledby="acs-title acs-desc">
+    <title id="acs-title">Интерактивна схема на ACS</title>
+    <desc id="acs-desc">Изберете стандартни A и X, височина на стената и налична схема. Височините Z се задават автоматично от таблицата на Walltopia.</desc>
+    <defs>
+      <marker id="acs-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="var(--viz-series-1)"/></marker>
+      <marker id="acs-dim-arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M10 0 0 5 10 10" fill="none" stroke="var(--muted-foreground)" stroke-width="1.8"/></marker>
+    </defs>
+    <g class="acs-grid" aria-hidden="true"></g>
+    <g class="acs-frame">
+      <path id="acs-roof"/>
+      <path id="acs-ground"/>
+      <g id="acs-columns"></g>
+    </g>
+    <g id="acs-beams"></g>
+    <g id="acs-points"></g>
+    <g id="acs-loads"></g>
+    <g id="acs-contours"></g>
+    <g id="acs-dimensions"></g>
+    <g class="acs-axis" transform="translate(810 462)">
+      <path d="M0 0V-42"/><path d="M0 0L38-8"/><path d="M0 0L22 28"/>
+      <text x="-6" y="-50">Z</text><text x="44" y="-7">Y</text><text x="25" y="40">X</text>
+    </g>
+  </svg>
+  <p id="acs-live" class="text-small text-muted" aria-live="polite"></p>
+</div>
+
+<style>
+  #acs-geometry-interactive{color:var(--foreground);width:100%}
+  #acs-geometry-interactive .viz-controls{margin-bottom:1rem;align-items:flex-end}
+  #acs-geometry-interactive .form-label{min-width:9rem;flex:1}
+  #acs-geometry-interactive output{font-weight:500;color:var(--foreground)}
+  #acs-geometry-interactive .acs-diagram{display:block;width:100%;height:auto;overflow:visible}
+  #acs-geometry-interactive .acs-frame path,#acs-geometry-interactive .acs-frame line{fill:none;stroke:var(--foreground);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  #acs-geometry-interactive .acs-column{fill:color-mix(in srgb,var(--muted) 35%,transparent);stroke:var(--foreground);stroke-width:2}
+  #acs-geometry-interactive .acs-beam{stroke:var(--viz-series-2);stroke-width:4;stroke-linecap:round;transition:all .22s ease}
+  #acs-geometry-interactive .acs-point{fill:var(--background);stroke:var(--viz-series-1);stroke-width:3;transition:all .22s ease}
+  #acs-geometry-interactive .acs-force{fill:none;stroke:var(--viz-series-1);stroke-width:3;marker-end:url(#acs-arrow);stroke-dasharray:8 7;animation:acs-flow 1.2s linear infinite;transition:all .22s ease}
+  #acs-geometry-interactive .acs-contour{fill:color-mix(in srgb,var(--viz-series-2) 12%,transparent);stroke:var(--viz-series-2);stroke-width:2;stroke-linejoin:round;transition:all .22s ease}
+  #acs-geometry-interactive .acs-top-contour{fill:none;stroke:var(--muted-foreground);stroke-width:1.5;stroke-dasharray:6 6;transition:all .22s ease}
+  #acs-geometry-interactive .acs-dim{fill:none;stroke:var(--muted-foreground);stroke-width:1.4;marker-start:url(#acs-dim-arrow);marker-end:url(#acs-dim-arrow);transition:all .22s ease}
+  #acs-geometry-interactive .acs-guide{stroke:var(--border);stroke-width:1;stroke-dasharray:5 6}
+  #acs-geometry-interactive text{font-family:inherit;fill:var(--foreground);font-size:14px;font-weight:400}
+  #acs-geometry-interactive .acs-muted{fill:var(--muted-foreground)}
+  #acs-geometry-interactive .acs-force-label{fill:var(--foreground);font-weight:500}
+  #acs-geometry-interactive .acs-axis path{fill:none;stroke:var(--foreground);stroke-width:1.8}
+  #acs-geometry-interactive.is-intro .acs-frame path,#acs-geometry-interactive.is-intro .acs-column{stroke-dasharray:1200;stroke-dashoffset:1200;animation:acs-draw .9s ease forwards}
+  #acs-geometry-interactive.is-intro .acs-beam{stroke-dasharray:1000;stroke-dashoffset:1000;animation:acs-draw .8s ease .45s forwards}
+  #acs-geometry-interactive.is-intro .acs-contour,#acs-geometry-interactive.is-intro .acs-top-contour{stroke-dasharray:900;stroke-dashoffset:900;animation:acs-draw .75s ease .9s forwards}
+  #acs-geometry-interactive.is-intro .acs-point{opacity:0;animation:acs-pop .45s ease 1.35s forwards}
+  #acs-geometry-interactive.is-intro .acs-force,#acs-geometry-interactive.is-intro .acs-force-label{opacity:0;animation:acs-pop .45s ease 1.6s forwards}
+  #acs-geometry-interactive.is-intro #acs-dimensions,#acs-geometry-interactive.is-intro .acs-axis{opacity:0;animation:acs-pop .55s ease 1.9s forwards}
+  #acs-geometry-interactive.is-intro .viz-controls{opacity:0;transform:translateY(-8px);animation:acs-controls .45s ease .15s forwards}
+  @keyframes acs-flow{to{stroke-dashoffset:-30}}
+  @keyframes acs-draw{to{stroke-dashoffset:0}}
+  @keyframes acs-pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+  @keyframes acs-controls{to{opacity:1;transform:translateY(0)}}
+  @media(prefers-reduced-motion:reduce){#acs-geometry-interactive *{transition:none!important;animation:none!important}#acs-geometry-interactive.is-intro *,#acs-geometry-interactive.is-intro .viz-controls{opacity:1!important;transform:none!important;stroke-dashoffset:0!important}}
+  @media(max-width:520px){#acs-geometry-interactive .form-label{min-width:8rem}}
+</style>
+
+<script>
+(() => {
+  const root = document.getElementById('acs-geometry-interactive');
+  const ns = 'http://www.w3.org/2000/svg';
+  const controls = {
+    a: root.querySelector('#acs-a'), x: root.querySelector('#acs-x'),
+    height: root.querySelector('#acs-height'), scheme: root.querySelector('#acs-scheme')
+  };
+  const outputs = {a: root.querySelector('#acs-a-out'), x: root.querySelector('#acs-x-out')};
+  const standardZ = {
+    '8': {'1':[7.5], '2':[4.5,7.5]},
+    '9': {'2':[4.5,8.5]},
+    '10': {'2':[5.0,9.5]},
+    '11': {'2':[5.5,10.5]},
+    '12': {'2':[6.0,11.5], '3':[4.0,8.0,11.5]},
+    '13': {'3':[4.5,9.0,12.5]},
+    '14': {'3':[4.5,9.0,13.5]},
+    '15': {'3':[5.0,10.0,14.5]},
+    '16': {'3':[5.5,11.0,15.5]}
+  };
+  const groups = {
+    columns: root.querySelector('#acs-columns'), beams: root.querySelector('#acs-beams'),
+    points: root.querySelector('#acs-points'), loads: root.querySelector('#acs-loads'),
+    contours: root.querySelector('#acs-contours'), dimensions: root.querySelector('#acs-dimensions')
+  };
+  const roof = root.querySelector('#acs-roof');
+  const ground = root.querySelector('#acs-ground');
+  const live = root.querySelector('#acs-live');
+  const make = (tag, attrs = {}, text = '') => {
+    const el = document.createElementNS(ns, tag);
+    Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k,String(v)));
+    if (text) el.textContent = text;
+    return el;
+  };
+  const clear = el => { while (el.firstChild) el.removeChild(el.firstChild); };
+  const line = (g,x1,y1,x2,y2,cls) => g.appendChild(make('line',{x1,y1,x2,y2,class:cls}));
+  const text = (g,x,y,value,cls='') => g.appendChild(make('text',{x,y,class:cls},value));
+
+  function updateSchemes(){
+    const schemes = Object.keys(standardZ[controls.height.value]);
+    const previous = controls.scheme.value;
+    controls.scheme.replaceChildren(...schemes.map(s => {
+      const option = document.createElement('option');
+      option.value = s; option.textContent = s + (s === '1' ? ' ниво' : ' нива');
+      return option;
+    }));
+    controls.scheme.value = schemes.includes(previous) ? previous : schemes[schemes.length - 1];
+  }
+
+  function render(){
+    const v = {a:Number(controls.a.value), x:Number(controls.x.value), height:Number(controls.height.value), scheme:controls.scheme.value};
+    const zValues = standardZ[String(v.height)][v.scheme];
+    outputs.a.value = v.a.toFixed(0) + ' m'; outputs.x.value = v.x.toFixed(0) + ' m';
+
+    const left = 118, width = 350 + (v.a - 4) * 62, right = left + width;
+    const mid = left + width / 2;
+    const baseY = 428, scaleZ = 25;
+    const wallTopY = baseY - v.height * scaleZ;
+    const columnTopY = wallTopY - 22;
+    const levels = zValues.map(z => baseY - z * scaleZ);
+    roof.setAttribute('d',`M${left} ${columnTopY+24}L${right} ${columnTopY}`);
+    ground.setAttribute('d',`M${left-30} ${baseY+12}L${right+45} ${baseY-8}`);
+
+    Object.values(groups).forEach(clear);
+    [left,mid,right].forEach((cx,i) => {
+      const yTop = columnTopY + (i===0 ? 24 : i===1 ? 12 : 0);
+      groups.columns.appendChild(make('rect',{x:cx-7,y:yTop,width:14,height:baseY-yTop,class:'acs-column'}));
+    });
+    levels.forEach((y,i) => {
+      const slope = (right-left) ? -24*(mid-left)/(right-left) : 0;
+      const yr = y - 12, yl = y + 12;
+      line(groups.beams,left,yl,right,yr,'acs-beam');
+      [left,mid,right].forEach((cx,j) => {
+        const cy = yl + (yr-yl) * ((cx-left)/(right-left));
+        groups.points.appendChild(make('circle',{cx,cy,r:6,class:'acs-point'}));
+        if(j===1){
+          line(groups.loads,cx-8,cy+2,cx-52,cy+20,'acs-force');
+          text(groups.loads,cx-80,cy-3,'Lx'+(i+1),'acs-force-label');
+        }
+      });
+    });
+
+    const overhangPx = v.x * 24;
+    const topContour = [[left+10,baseY+42],[left+width*.28,baseY+55],[left+width*.48,baseY+30],[left+width*.70,baseY+47],[right-10,baseY+12]];
+    const bottomContour = topContour.map((p,i)=>[p[0]+overhangPx*(.35+i*.16),p[1]+42]);
+    const polygon = topContour.concat([...bottomContour].reverse()).map(p=>p.join(',')).join(' ');
+    groups.contours.appendChild(make('polygon',{points:polygon,class:'acs-contour'}));
+    groups.contours.appendChild(make('polyline',{points:topContour.map(p=>p.join(',')).join(' '),class:'acs-top-contour'}));
+    text(groups.contours,right-35,baseY+2,'горен контур','acs-muted');
+    text(groups.contours,right+overhangPx*.9-25,baseY+86,'долен контур','acs-muted');
+
+    line(groups.dimensions,left,baseY+118,right,baseY+118,'acs-dim');
+    text(groups.dimensions,mid-62,baseY+108,'A = '+v.a.toFixed(1)+' m','acs-muted');
+    line(groups.dimensions,topContour[3][0],topContour[3][1],bottomContour[3][0],bottomContour[3][1],'acs-dim');
+    text(groups.dimensions,bottomContour[3][0]+10,bottomContour[3][1]-10,'X = '+v.x.toFixed(1)+' m','acs-muted');
+    levels.forEach((y,i) => {
+      line(groups.dimensions,right+42,y,right+42,baseY,'acs-dim');
+      text(groups.dimensions,right+53,(y+baseY)/2,'Z'+(i+1)+' = '+zValues[i].toFixed(1)+' m','acs-muted');
+      line(groups.dimensions,right,y,right+52,y,'acs-guide');
+    });
+    line(groups.dimensions,right+122,wallTopY,right+122,baseY,'acs-dim');
+    line(groups.dimensions,right,wallTopY,right+132,wallTopY,'acs-guide');
+    text(groups.dimensions,right+134,(wallTopY+baseY)/2,'H = '+v.height.toFixed(0)+' m','acs-muted');
+    live.textContent = `${v.height} m стена · ${v.scheme} ${v.scheme === '1' ? 'ниво' : 'нива'} · A ${v.a.toFixed(0)} m · X ${v.x.toFixed(0)} m · Z: ${zValues.map(z => z.toFixed(1)+' m').join(', ')}`;
+  }
+  controls.a.addEventListener('change',render); controls.x.addEventListener('change',render);
+  controls.scheme.addEventListener('change',render);
+  controls.height.addEventListener('change',() => { updateSchemes(); render(); });
+  updateSchemes();
+  render();
+  window.setTimeout(() => root.classList.remove('is-intro'), 2700);
+})();
+</script>
+</main>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Walltopia Preliminary Loads — Applicability Check</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="assets/walltopia-logo.svg" />
+  <link rel="stylesheet" href="styles.css?v=wt124" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap">
+      <a class="brand" href="index.html">
+        <img class="logo" src="assets/walltopia-logo-white.svg" alt="Walltopia" />
+        <span class="tag">Preliminary&nbsp;<b>Loads</b></span>
+      </a>
+      <div class="spacer"></div>
+      <nav class="topnav" aria-label="Primary">
+        <a href="index.html" aria-current="page">Load Calculator</a>
+        <a href="dashboard.html">My Projects</a>
+        <a href="technical-documentation.html">Technical Documentation</a>
+        <a href="ask-engineer.html">Engineering Support</a>
+      </nav>
+      <div id="auth-slot"></div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- INPUTS -->
+    <section class="card panel" aria-label="Inputs">
+      <div class="panel-head">
+        <h2>Your inputs</h2>
+        <button class="reset-calculator-btn" id="reset-calculator" type="button" aria-label="Reset calculator">↺ Reset</button>
+      </div>
+
+      <div class="field">
+        <label>Units</label>
+        <div class="seg" id="seg-units"></div>
+      </div>
+
+      <div class="field">
+        <label>Structure type</label>
+        <div class="seg" id="seg-type"></div>
+        <div class="hint" id="type-hint"></div>
+      </div>
+
+      <div class="field">
+        <label id="lbl-height">Climbing-surface height</label>
+        <div class="chips" id="chips-height"></div>
+      </div>
+
+      <div class="field" id="field-scheme">
+        <label>Attachment scheme <span class="hint">(levels of attachment by height)</span></label>
+        <div class="chips small" id="chips-scheme"></div>
+      </div>
+
+      <div class="field">
+        <label id="lbl-span">Column span&nbsp;·&nbsp;A <span class="hint">(between building columns)</span></label>
+        <div class="chips" id="chips-span"></div>
+      </div>
+
+      <div class="field">
+        <label id="lbl-overhang">Overhang&nbsp;·&nbsp;X <span class="hint">(top − bottom contour)</span></label>
+        <div class="chips" id="chips-overhang"></div>
+      </div>
+
+      <div class="field" id="field-force-level">
+        <label>Live load force level <span class="hint">(attachment level taken at its maximum live load)</span></label>
+        <div class="chips small" id="chips-force-input"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field" style="margin-bottom:10px">
+        <label>Check against your structure <span class="hint">(optional)</span></label>
+        <div class="caprow">
+          <input id="cap-input" type="number" inputmode="decimal" placeholder="allowable column load" min="0" step="any" />
+          <div class="unit" id="cap-unit">kN</div>
+        </div>
+        <button class="cap-check-btn" id="cap-submit" type="button">Check capacity</button>
+        <div class="hint" id="cap-hint" style="margin-top:7px">Horizontal load one existing column / frame can carry.</div>
+      </div>
+
+      <label class="toggle-line">
+        <input type="checkbox" id="chk-factored" />
+        Show factored design values&nbsp;<span class="hint" id="factored-hint"></span>
+      </label>
+
+    </section>
+
+    <!-- RESULTS -->
+    <section class="card results" aria-live="polite">
+      <div id="result-root">
+        <div class="empty">Loading load tables…</div>
+      </div>
+      <div id="project-root"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <div><b>Walltopia Preliminary Loads</b><span>Preliminary sizing only — not for construction.</span></div>
+      <nav aria-label="Footer"><a href="privacy.html">Privacy &amp; Cookies</a><a href="disclaimer.html">Engineering Disclaimer</a></nav>
+      <small>© 2026 Walltopia AD</small>
+    </div>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="api.js?v=wt4"></script>
+  <script src="auth-ui.js?v=wt10"></script>
+  <script src="app.js?v=wt55"></script>
+  <script src="attachment-configurator.js?v=wt40"></script>
+  <script src="document-tools.js?v=wt17"></script>
+</body>
+</html>
