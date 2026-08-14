@@ -4,7 +4,7 @@
   var root = document.getElementById("attachment-config-root");
   var DETAIL_PATH = "manuals/attachment/details/";
   var ATTACHMENT_DRAFT_KEY = "walltopia.attachment.draft.v1";
-  var state = { type: "wall", slab: "solid-concrete-slab", baseDetailId: null, support: "concrete-wall", detail: null, input: { height: 12, levels: 3 }, levelForces: [], deadLevelForces: [], forceUnit: "kN", view: { scale: 1, panX: 0, panY: 0 } };
+  var state = { type: "wall", slab: "solid-concrete-slab", baseDetailId: null, support: "concrete-wall", detail: null, input: { height: 12, levels: 3 }, levelForces: [], deadLevelForces: [], forceUnit: "kN", view: { scale: 1, panX: 0, panY: 0 }, viewContext: null };
   try {
     var attachmentDraft = JSON.parse(localStorage.getItem(ATTACHMENT_DRAFT_KEY) || "null");
     if (attachmentDraft && typeof attachmentDraft === "object") {
@@ -53,7 +53,7 @@
   function supportDetails() { return details.filter(function (d) { return d.support === state.support && (!d.boulderOnly || state.type === "boulder"); }); }
   function floorDetails() { return details.filter(function (d) { return d.support === "concrete-floor" && d.slab === state.slab; }); }
   function baseDetail() { return floorDetails().find(function (d) { return d.id === state.baseDetailId; }) || floorDetails()[0]; }
-  function selectedDetail() { return details.find(function (d) { return d.id === state.detail; }) || supportDetails()[0]; }
+  function selectedDetail() { return details.find(function (d) { return d.id === state.detail; }) || null; }
   function detailName(d) {
     if (d.point === "base") return "Base connection detail " + d.id.split("-")[1];
     var category = d.point === "base" ? slabLabels[d.slab] : supportLabels[d.support];
@@ -71,6 +71,18 @@
     hideListPreview();
     root = document.getElementById("attachment-config-root");
     if (!root) return;
+    if (root.getAttribute("data-visual-only") === "true") {
+      state.support = state.input.columnSupportingStructure || null;
+      state.detail = state.input.columnAttachmentDetail || null;
+      if (allowedSupports().indexOf(state.support) < 0) state.support = null;
+      if (!selectedDetail() || selectedDetail().support !== state.support) state.detail = null;
+      var visualLevels = state.type === "boulder" ? 1 : Math.max(1, Number(state.input.levels) || 1);
+      root.innerHTML = '<div class="attachment-visual-layout" id="attachment-visual-layout"><div class="attachment-acs">'
+        + '<div class="attachment-view-controls" aria-label="Drawing zoom controls"><button type="button" data-view-action="out" aria-label="Zoom out">−</button><span id="attachment-zoom-value">100%</span><button type="button" data-view-action="in" aria-label="Zoom in">+</button><button type="button" data-view-action="reset" aria-label="Reset view">↺</button></div>'
+        + '<div class="attachment-viewport" id="attachment-viewport" aria-label="Drag to move the drawing">' + acsSvg(visualLevels) + '</div></div><div class="attachment-hover-card" id="attachment-preview" hidden></div></div>';
+      wire();
+      return;
+    }
     if (!baseDetail() || baseDetail().slab !== state.slab) state.baseDetailId = floorDetails()[0].id;
     else state.baseDetailId = baseDetail().id;
     if (allowedSupports().indexOf(state.support) < 0) state.support = allowedSupports()[0];
@@ -120,7 +132,9 @@
     var scaleZ = state.type === "boulder" ? 52 : 20;
     var topY = baseY - v.height * scaleZ;
     var levelYs = zValues.map(function (z) { return baseY - z * scaleZ; });
-    var circles = '<circle class="attachment-point base-point" data-point="base" cx="' + mid + '" cy="' + baseY + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Base attachment detail"/>';
+    var visualOnly = root && root.getAttribute("data-visual-only") === "true";
+    var hasAttachmentDetail = !!selectedDetail();
+    var circles = visualOnly ? "" : '<circle class="attachment-point base-point" data-point="base" cx="' + mid + '" cy="' + baseY + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Base attachment detail"/>';
     var beams = "", labels = "", dims = "";
     levelYs.forEach(function (y, i) {
       // Match the roof contour slope exactly: +12 px at the left and -12 px
@@ -129,7 +143,7 @@
       beams += '<line class="acs-full-beam" x1="' + left + '" y1="' + yl + '" x2="' + right + '" y2="' + yr + '"/>';
       [left,mid,right].forEach(function (cx, j) {
         var cy = yl + (yr-yl) * ((cx-left)/(right-left));
-        circles += '<circle class="attachment-point" data-point="level" data-level="' + (i+1) + '" cx="' + cx + '" cy="' + cy + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment level ' + (i+1) + ' detail"/>';
+        if (hasAttachmentDetail) circles += '<circle class="attachment-point" data-point="level" data-level="' + (i+1) + '" cx="' + cx + '" cy="' + cy + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment level ' + (i+1) + ' detail"/>';
       });
       var rawForce = state.levelForces[i], rawDeadForce = state.deadLevelForces[i];
       var force = Number(rawForce), deadForce = Number(rawDeadForce);
@@ -183,7 +197,7 @@
       + '<g class="acs-contour-dim"><line x1="' + contourDimTop[0] + '" y1="' + contourDimTop[1] + '" x2="' + contourDimBottom[0] + '" y2="' + contourDimBottom[1] + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + (contourDimBottom[0]+14) + '" y="' + ((contourDimTop[1]+contourDimBottom[1])/2+4) + '">X = ' + v.x.toFixed(1) + ' m</text></g>'
       + dims + '<line class="acs-dim" x1="760" y1="' + (topY-12) + '" x2="760" y2="' + baseY + '"/><text class="acs-dim-label" x="775" y="' + ((topY+baseY)/2) + '">H = ' + v.height.toFixed(0) + ' m</text>'
       + '<g class="acs-axis" transform="translate(820 410)"><path d="M0 0V-48" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L42-9" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L25 32" marker-end="url(#acs-tech-arrow)"/><text x="-7" y="-55">Z</text><text x="48" y="-7">Y</text><text x="28" y="43">X</text></g>'
-      + '<text class="acs-caption" x="28" y="30">Hover, focus or click a red point to preview its attachment detail</text>'
+      + (hasAttachmentDetail ? '<text class="acs-caption" x="28" y="30">Hover, focus or click a red point to preview its attachment detail</text>' : '')
       + circles + '</svg>';
   }
   function previewHtml(d, label) {
@@ -305,13 +319,20 @@
     var svg = viewport && viewport.querySelector("svg");
     var zoomValue = root.querySelector("#attachment-zoom-value");
     if (!viewport || !svg) return;
+    var viewContext = root.getAttribute("data-visual-only") === "true" ? "results" : "configurator";
+    var resetScale = viewContext === "results" ? 1.12 : 1;
+    var resetPanY = viewContext === "results" ? -20 : 0;
+    if (state.viewContext !== viewContext) {
+      state.view = { scale: resetScale, panX: 0, panY: resetPanY };
+      state.viewContext = viewContext;
+    }
     function applyView() {
       var viewWidth = 900 / state.view.scale;
       var viewHeight = 550 / state.view.scale;
       var viewX = (900 - viewWidth) / 2 - state.view.panX;
       var viewY = (550 - viewHeight) / 2 - state.view.panY;
       svg.setAttribute("viewBox", [viewX, viewY, viewWidth, viewHeight].join(" "));
-      if (zoomValue) zoomValue.textContent = Math.round(state.view.scale * 100) + "%";
+      if (zoomValue) zoomValue.textContent = Math.round(state.view.scale / resetScale * 100) + "%";
       viewport.classList.toggle("is-zoomed", state.view.scale > 1.001);
     }
     function setScale(next, clientX, clientY) {
@@ -342,7 +363,7 @@
         var action = button.getAttribute("data-view-action");
         if (action === "in") setScale(state.view.scale + .25);
         if (action === "out") setScale(state.view.scale - .25);
-        if (action === "reset") { state.view = { scale: 1, panX: 0, panY: 0 }; applyView(); }
+        if (action === "reset") { state.view = { scale: resetScale, panX: 0, panY: resetPanY }; applyView(); }
       });
     });
     viewport.addEventListener("wheel", function (e) {
@@ -382,6 +403,16 @@
     state.forceUnit = (e.detail.snapshot && e.detail.snapshot.unit) || state.forceUnit;
     render();
   });
+  window.WTAttachmentConfiguratorRefresh = function (payload) {
+    if (payload && payload.input) {
+      state.input = payload.input;
+      state.type = state.input.type || "wall";
+      state.levelForces = (payload.snapshot && payload.snapshot.levelForces) || [];
+      state.deadLevelForces = (payload.snapshot && payload.snapshot.levelDeadForces) || [];
+      state.forceUnit = (payload.snapshot && payload.snapshot.unit) || state.forceUnit;
+    }
+    render();
+  };
   window.addEventListener("wtcalculatordraftreset", function () {
     try { localStorage.removeItem(ATTACHMENT_DRAFT_KEY); } catch (error) {}
     state.slab = "solid-concrete-slab";

@@ -11,8 +11,11 @@
 
   // ---- state ----
   var S = { units: "EU", type: "wall", height: null, levels: null,
-            span: null, overhang: null, force: null, factored: false, cap: null };
+            span: null, overhang: null, force: null, factored: false, cap: null,
+            baseCapacity: null, sideCapacity: null, columnCapacities: {}, attachmentSolution: "single" };
   var selectedInputs = { units: false, type: false, height: false, levels: false, span: false, overhang: false, force: false };
+  var singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
+  var columnPointSelection = { support: null, attachmentDetail: null };
   var CALCULATOR_DRAFT_KEY = "walltopia.calculator.draft.v1";
   var schematicView = { scale: 1, panX: 0, panY: 0 };
 
@@ -100,7 +103,12 @@
       { label: "Imperial (lb · ft)", value: "USA" }
     ], selectedInputs.units ? S.units : null, function (v) {
       selectedInputs.units = true;
-      if (v !== S.units) { S.cap = null; var ci = document.getElementById("cap-input"); if (ci) ci.value = ""; }
+      if (v !== S.units) {
+        S.cap = null;
+        S.baseCapacity = null;
+        S.sideCapacity = null;
+        S.columnCapacities = {};
+      }
       S.units = v; clampAndRender();
     });
 
@@ -171,12 +179,17 @@
           var h = forceWall && forceWall.lhEU && forceWall.lhEU[v];
           return "Max Z" + v + (h ? " · " + fmtLen(h) : "");
         });
+      document.querySelectorAll("#chips-force-input button").forEach(function (button, index) {
+        var level = forceRows[index].lvl;
+        var height = forceWall && forceWall.lhEU && forceWall.lhEU[level];
+        button.innerHTML = '<span class="force-label-main">Max Z' + level + '</span>'
+          + (height ? '<span class="force-label-length">' + fmtLen(height) + '</span>' : '');
+      });
     } else {
       forceField.style.display = "none";
     }
 
-    // capacity + factored
-    document.getElementById("cap-unit").textContent = u.force;
+    // factored values
     document.getElementById("factored-hint").textContent =
       "(×" + u.dl + " DL, ×" + u.ll + " LL)";
   }
@@ -254,6 +267,421 @@
     return src ? src[key] : undefined;
   }
 
+  function selectedScenarioRow() {
+    if (S.type === "boulder") return boulderRow();
+    var rows = wallRows();
+    return rows.filter(function (row) { return row.lvl === S.force; })[0] || rows[0];
+  }
+
+  function singlePointValues() {
+    var row = selectedScenarioRow();
+    function value(key, kind) { return row ? factor(pick(row, key), kind) : 0; }
+    var values = {
+      RZ0DL: value("RZ0DL", "DL"), RZ0LL: value("RZ0LL", "LL"),
+      RX1DL: value("RX1DL", "DL"), RX1LL: value("RX1LL", "LL"),
+      RX2DL: value("RX2DL", "DL"), RX2LL: value("RX2LL", "LL"),
+      RX3DL: value("RX3DL", "DL"), RX3LL: value("RX3LL", "LL")
+    };
+    if (S.type === "wall") {
+      values.RX0DL = value("RX0DL", "DL");
+      values.RX0LL = value("RX0LL", "LL");
+    }
+    return values;
+  }
+
+  function governingRZ0() {
+    var row = selectedScenarioRow();
+    var governing = { value: 0, signedValue: 0, scenario: null };
+    if (row) {
+      var dl = factor(pick(row, "RZ0DL"), "DL") || 0;
+      var ll = factor(pick(row, "RZ0LL"), "LL") || 0;
+      var combined = dl + ll;
+      governing.value = Math.abs(combined);
+      governing.signedValue = combined;
+      governing.scenario = S.type === "wall" ? "Selected force level Z" + row.lvl : "Boulder load case";
+    }
+    return governing;
+  }
+
+  function totalHorizontalReaction() {
+    var row=selectedScenarioRow(), total=0;
+    if (row) {
+      for (var level=1;level<=columnLevelCount();level++) {
+        total+=(factor(pick(row,"RX"+level+"DL"),"DL")||0)+(factor(pick(row,"RX"+level+"LL"),"LL")||0);
+      }
+    }
+    return { value:Math.abs(total), signedValue:total, scenario:row?(S.type==="wall"?"Selected force level Z"+row.lvl:"Boulder load case"):null };
+  }
+
+  function singlePointTableHtml(values) {
+    var rows = [
+      { point: "RZ0", dl: "RZ0DL", ll: "RZ0LL", description: "Base point · vertical" }
+    ];
+    if (S.type === "wall") rows.push({ point: "RX0", dl: "RX0DL", ll: "RX0LL", description: "Base point · horizontal" });
+    var levelCount = S.type === "wall" ? Number(S.levels || 0) : 1;
+    var wall = S.type === "wall" ? DATA.walls[wallKey(S.height, S.levels)] : null;
+    for (var level = 1; level <= levelCount; level++) {
+      var levelHeight = wall && wall.lhEU && wall.lhEU[level] !== undefined ? " · " + fmtLen(wall.lhEU[level]) : "";
+      rows.push({
+        point: "RX" + level,
+        dl: "RX" + level + "DL",
+        ll: "RX" + level + "LL",
+        description: "Side point X" + level + levelHeight
+      });
+    }
+    function loadCell(key, kind) {
+      return '<td class="single-load-cell ' + (kind === "LL" ? 'is-ll' : 'is-dl') + '"><strong><span class="single-load-number">' + fmtForce(values[key]) + '</span><span class="single-load-unit">' + U().force + '</span></strong></td>';
+    }
+    return '<div class="single-point-table-wrap"><table class="single-point-table"><thead><tr><th>Attachment point</th><th>DL<span>Dead load</span></th><th class="is-ll">LL<span>Live load</span></th></tr></thead><tbody>'
+      + rows.map(function (row) {
+          return '<tr><th scope="row" class="single-point-name"><strong>' + row.point + '</strong><span>' + row.description + '</span></th>' + loadCell(row.dl, "DL") + loadCell(row.ll, "LL") + '</tr>';
+        }).join("") + '</tbody></table></div>';
+  }
+
+  function columnLevelCount() { return S.type === "wall" ? Number(S.levels || 0) : 1; }
+
+  function columnPointValues() {
+    var row = selectedScenarioRow(), values = {};
+    for (var level = 1; level <= columnLevelCount(); level++) {
+      values["LX" + level + "DL"] = row ? factor(pick(row, "LX" + level + "DL"), "DL") : 0;
+      values["LX" + level + "LL"] = row ? factor(pick(row, "LX" + level + "LL"), "LL") : 0;
+    }
+    return values;
+  }
+
+  function governingLX(level) {
+    var row = selectedScenarioRow();
+    var governing = { value:0, signedValue:0, scenario:null };
+    if (row) {
+      var dl = factor(pick(row, "LX" + level + "DL"), "DL") || 0;
+      var ll = factor(pick(row, "LX" + level + "LL"), "LL") || 0;
+      var combined = dl + ll;
+      governing.value = Math.abs(combined);
+      governing.signedValue = combined;
+      governing.scenario = S.type === "wall" ? "Selected force level Z" + row.lvl : "Boulder load case";
+    }
+    return governing;
+  }
+
+  function columnPointTableHtml(values) {
+    var rows = [], wall = S.type === "wall" ? DATA.walls[wallKey(S.height, S.levels)] : null;
+    for (var level = 1; level <= columnLevelCount(); level++) {
+      var levelHeight = wall && wall.lhEU && wall.lhEU[level] !== undefined ? " · " + fmtLen(wall.lhEU[level]) : "";
+      rows.push({ point:"LX" + level, dl:"LX" + level + "DL", ll:"LX" + level + "LL", description:"Building column at X" + level + levelHeight });
+    }
+    function loadCell(key, kind) {
+      return '<td class="single-load-cell ' + (kind === "LL" ? 'is-ll' : 'is-dl') + '"><strong><span class="single-load-number">' + fmtForce(values[key]) + '</span><span class="single-load-unit">' + U().force + '</span></strong></td>';
+    }
+    return '<div class="single-point-table-wrap column-point-table-wrap"><table class="single-point-table"><thead><tr><th>Column point</th><th>DL<span>Dead load</span></th><th class="is-ll">LL<span>Live load</span></th></tr></thead><tbody>'
+      + rows.map(function (row) { return '<tr><th scope="row" class="single-point-name"><strong>' + row.point + '</strong><span>' + row.description + '</span></th>' + loadCell(row.dl,"DL") + loadCell(row.ll,"LL") + '</tr>'; }).join("")
+      + '</tbody></table></div>';
+  }
+
+  function singlePointConditionsHtml() {
+    var slab = singlePointSelection.slab;
+    var details = slab === "hollow" ? ["CF-03"] : slab === "solid" ? ["CF-01","CF-02"] : [];
+    var detailNames = { "CF-01": "Base connection detail 01", "CF-02": "Base connection detail 02", "CF-03": "Base connection detail 03" };
+    var support = singlePointSelection.support;
+    var supports = S.type === "boulder" ? ["concrete-wall","masonry-wall"] : ["concrete-wall"];
+    if (supports.indexOf(support) < 0) {
+      support = null;
+      singlePointSelection.support = null;
+      singlePointSelection.attachmentDetail = null;
+    }
+    var supportLabels = { "concrete-wall": "Solid concrete wall", "masonry-wall": "Masonry / brick wall" };
+    var supportDetails = support === "concrete-wall" ? ["CW-01","CW-03"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
+    return '<section class="single-conditions"><div class="single-section-label">1 · Select the supporting slab</div>'
+      + '<div class="seg single-slab-options"><button type="button" data-single-slab="hollow" aria-pressed="' + (slab === "hollow") + '">Hollow panel slab</button><button type="button" data-single-slab="solid" aria-pressed="' + (slab === "solid") + '">Solid concrete slab</button></div>'
+      + (details.length ? '<div class="attachment-detail-list single-detail-list">' + details.map(function (code) {
+          var selected = singlePointSelection.detail === code;
+          return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '"><button class="attachment-detail-choice" type="button" data-single-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + detailNames[code] + '</span>' + (selected ? '<em>Selected</em>' : '') + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
+        }).join("") + '</div>' : '')
+      + '<div class="single-attachment-method"><div class="single-section-label">2 · Choose attachment method</div><div class="seg single-attachment-method-options">'
+      + supports.map(function (item) { return '<button type="button" data-single-support="' + item + '" aria-pressed="' + (support === item) + '">' + supportLabels[item] + '</button>'; }).join("") + '</div>'
+      + (supportDetails.length ? '<div class="attachment-detail-list single-detail-list single-support-detail-list">' + supportDetails.map(function (code) {
+          var selected = singlePointSelection.attachmentDetail === code;
+          return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '"><button class="attachment-detail-choice" type="button" data-single-attachment-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + singleDetailMeta[code].title + '</span>' + (selected ? '<em>Selected</em>' : '') + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
+        }).join("") + '</div>' : '')
+      + '</div>'
+      + '</section>';
+  }
+
+  var singleDetailMeta = {
+    "CF-01": { title: "Base connection detail 01", file: "concrete-floor-05.png" },
+    "CF-02": { title: "Base connection detail 02", file: "concrete-floor-04.png" },
+    "CF-03": { title: "Base connection detail 03", file: "concrete-floor-03.png" },
+    "CW-01": { title: "Solid concrete wall / column · Detail 01", file: "concrete-wall-03.png" },
+    "CW-02": { title: "Solid concrete wall / column · Detail 02", file: "concrete-wall-02.png" },
+    "CW-03": { title: "Solid concrete wall / column · Detail 03", file: "concrete-wall-01.png" },
+    "SC-01": { title: "Steel column · Detail 01", file: "steel-column-04.png" },
+    "SC-02": { title: "Steel column · Detail 02", file: "steel-column-03.png" },
+    "SC-03": { title: "Steel column · Detail 03", file: "steel-column-02.png" },
+    "SC-04": { title: "Steel column · Detail 04", file: "steel-column-01.png" },
+    "MW-01": { title: "Masonry / brick wall · Detail 01", file: "masonry-wall-02.png" },
+    "MW-02": { title: "Masonry / brick wall · Detail 02", file: "masonry-wall-01.png" }
+  };
+  function singleDetailImagePath(code) { return "manuals/attachment/details/" + singleDetailMeta[code].file; }
+  function closeSingleDetailPreview() {
+    var preview = document.getElementById("single-detail-preview");
+    if (preview) preview.hidden = true;
+  }
+  function showSingleDetailPreview(code, trigger) {
+    var meta = singleDetailMeta[code];
+    if (!meta) return;
+    var preview = document.getElementById("single-detail-preview");
+    if (!preview) {
+      preview = document.createElement("div");
+      preview.id = "single-detail-preview";
+      preview.className = "attachment-list-preview";
+      preview.hidden = true;
+      document.body.appendChild(preview);
+    }
+    var previewTitle = trigger.closest(".column-conditions") && code === "CW-02" ? "Solid concrete column · Detail 02" : meta.title;
+    preview.innerHTML = '<span class="attachment-label">Detail preview</span><h3>' + code + ' · ' + previewTitle + '</h3><img class="attachment-preview-image" src="' + singleDetailImagePath(code) + '" alt="' + code + ' ' + previewTitle + '">';
+    preview.hidden = false;
+    var rect = trigger.getBoundingClientRect();
+    if (trigger.closest(".column-conditions")) {
+      var resultRect = document.getElementById("result-root").getBoundingClientRect();
+      var containedLeft = Math.min(rect.left, resultRect.right - preview.offsetWidth - 12);
+      preview.style.left = Math.max(resultRect.left + 12, containedLeft) + "px";
+      var below = rect.bottom + 8;
+      preview.style.top = Math.max(12, Math.min(below, window.innerHeight - preview.offsetHeight - 12)) + "px";
+      return;
+    }
+    var left = rect.right + 12;
+    if (left + preview.offsetWidth > window.innerWidth - 12) left = rect.left - preview.offsetWidth - 12;
+    preview.style.left = Math.max(12, left) + "px";
+    preview.style.top = Math.max(12, Math.min(rect.top, window.innerHeight - preview.offsetHeight - 12)) + "px";
+  }
+  function openSingleDetailModal(code) {
+    var meta = singleDetailMeta[code];
+    if (!meta) return;
+    var modal = document.getElementById("single-detail-modal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "single-detail-modal";
+      modal.className = "attachment-detail-modal";
+      modal.hidden = true;
+      modal.innerHTML = '<div class="attachment-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="single-detail-modal-title"><button class="attachment-modal-close" type="button" aria-label="Close detail">×</button><span class="attachment-label">Full attachment detail</span><h2 id="single-detail-modal-title"></h2><img class="attachment-modal-image" alt=""></div>';
+      document.body.appendChild(modal);
+      var close = function () { modal.hidden = true; document.body.classList.remove("attachment-modal-open"); };
+      modal.querySelector(".attachment-modal-close").addEventListener("click", close);
+      modal.addEventListener("click", function (event) { if (event.target === modal) close(); });
+      document.addEventListener("keydown", function (event) { if (event.key === "Escape" && !modal.hidden) close(); });
+    }
+    modal.querySelector("#single-detail-modal-title").textContent = code + " · " + meta.title;
+    var image = modal.querySelector(".attachment-modal-image");
+    image.src = singleDetailImagePath(code);
+    image.alt = code + " " + meta.title;
+    modal.hidden = false;
+    document.body.classList.add("attachment-modal-open");
+    modal.querySelector(".attachment-modal-close").focus();
+  }
+
+  function singleCapacityHtml() {
+    var horizontal=totalHorizontalReaction(), horizontalChecked=S.sideCapacity!==null&&!isNaN(S.sideCapacity), horizontalOk=horizontalChecked&&horizontal.value<=S.sideCapacity;
+    var baseGoverning=governingRZ0(), baseChecked=S.baseCapacity!==null, baseOk=baseChecked&&baseGoverning.value<=S.baseCapacity;
+    var statuses="";
+    if (baseChecked) statuses+='<div class="single-capacity-status ' + (baseOk?'is-ok':'is-bad') + '"><strong>' + (baseOk?'Applicable':'Exceeds capacity') + '</strong><span>Required vertical reaction at base point X0: ' + fmtForce(baseGoverning.value) + ' ' + U().force + (baseGoverning.scenario?' · '+baseGoverning.scenario:'') + '</span></div>';
+    if (horizontalChecked) statuses+='<div class="single-capacity-status ' + (horizontalOk?'is-ok':'is-bad') + '"><strong>' + (horizontalOk?'Applicable':'Exceeds capacity') + '</strong><span>Total horizontal load on one column: ' + fmtForce(horizontal.value) + ' ' + U().force + ' · Σ(RXi DL + RXi LL)' + (horizontal.scenario?' · '+horizontal.scenario:'') + '</span></div>';
+    return '<section class="single-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div>'
+      + '<div class="single-capacity-fields">'
+      + '<label><span>Allowable vertical reaction at base point (X0)</span><div class="caprow"><input id="base-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (S.baseCapacity===null?'':S.baseCapacity) + '" placeholder="Base load capacity"><div class="unit">' + U().force + '</div></div></label>'
+      + '<label><span>Allowable total horizontal load on one column</span><div class="caprow"><input id="side-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (horizontalChecked?S.sideCapacity:'') + '" placeholder="Column load capacity"><div class="unit">' + U().force + '</div></div></label>'
+      + '<button class="cap-check-btn" id="single-capacity-submit" type="button">Check capacity</button></div>' + statuses + '</section>';
+  }
+
+  function columnPointConditionsHtml() {
+    var support = columnPointSelection.support;
+    var supports = S.type === "boulder" ? ["concrete-wall","steel-column","masonry-wall"] : ["concrete-wall","steel-column"];
+    if (supports.indexOf(support) < 0) { support=null; columnPointSelection.support=null; columnPointSelection.attachmentDetail=null; }
+    var labels = { "concrete-wall":"Solid concrete column", "steel-column":"Steel column", "masonry-wall":"Masonry / brick wall" };
+    var details = support === "concrete-wall" ? ["CW-02"] : support === "steel-column" ? ["SC-01","SC-02","SC-03","SC-04"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
+    if (details.indexOf(columnPointSelection.attachmentDetail) < 0) columnPointSelection.attachmentDetail = null;
+    return '<section class="single-conditions column-conditions"><div class="single-section-label">Choose attachment method</div><div class="seg single-attachment-method-options">'
+      + supports.map(function (item) { return '<button type="button" data-column-support="' + item + '" aria-pressed="' + (support === item) + '">' + labels[item] + '</button>'; }).join("") + '</div>'
+      + (details.length ? '<div class="attachment-detail-list single-detail-list">' + details.map(function (code) {
+          var selected=columnPointSelection.attachmentDetail===code;
+          var title = code === "CW-02" ? "Solid concrete column · Detail 02" : singleDetailMeta[code].title;
+          return '<div class="attachment-detail-row' + (selected?' is-selected':'') + '"><button class="attachment-detail-choice" type="button" data-column-attachment-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + title + '</span>' + (selected?'<em>Selected</em>':'') + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
+        }).join("") + '</div>' : '') + '</section>';
+  }
+
+  function columnSchematicHtml() {
+    var values = columnPointValues(), count = columnLevelCount();
+    var methodLabels = { "concrete-wall":"Solid concrete wall / column", "steel-column":"Steel column", "masonry-wall":"Masonry / brick wall" };
+    var method = columnPointSelection.support ? methodLabels[columnPointSelection.support] : "Select an attachment method";
+    var detail = columnPointSelection.attachmentDetail ? " · " + columnPointSelection.attachmentDetail : "";
+    var rows = "", top = 54, bottom = 342, columnX = 250;
+    function arrow(level, kind, value, y, offset) {
+      var zero = Math.abs(value) < .000001, negative = value < 0;
+      var start = negative ? columnX + 10 : columnX - 105;
+      var end = negative ? columnX + 105 : columnX - 10;
+      return '<line class="column-load-arrow is-' + kind.toLowerCase() + (zero ? ' is-zero' : '') + '" x1="' + start + '" y1="' + (y+offset) + '" x2="' + end + '" y2="' + (y+offset) + '"' + (zero ? '' : ' marker-end="url(#column-arrow-' + kind.toLowerCase() + ')"') + '/>'
+        + '<text class="column-load-label is-' + kind.toLowerCase() + '" x="' + (negative ? columnX+112 : columnX-112) + '" y="' + (y+offset-5) + '" text-anchor="' + (negative ? 'start' : 'end') + '">LX' + level + ' ' + kind + ' = ' + fmtForce(value) + ' ' + U().force + '</text>';
+    }
+    for (var level=1; level<=count; level++) {
+      var y = count === 1 ? (top+bottom)/2 : bottom-(level-1)*(bottom-top)/(count-1);
+      rows += '<line class="column-level-line" x1="' + (columnX-22) + '" y1="' + y + '" x2="' + (columnX+22) + '" y2="' + y + '"/>'
+        + '<circle class="column-detail-point' + (columnPointSelection.attachmentDetail ? '' : ' is-hidden') + '" cx="' + columnX + '" cy="' + y + '" r="7"><title>LX' + level + (columnPointSelection.attachmentDetail ? ' · '+columnPointSelection.attachmentDetail : '') + '</title></circle>'
+        + '<text class="column-point-label" x="' + (columnX+34) + '" y="' + (y+4) + '">LX' + level + '</text>'
+        + arrow(level,"LL",Number(values["LX"+level+"LL"]||0),y,-8)
+        + arrow(level,"DL",Number(values["LX"+level+"DL"]||0),y,8);
+    }
+    return '<div class="column-schematic" id="column-schematic"><div class="column-schematic-head"><span>Building-column load visualization</span><strong>' + method + detail + '</strong></div>'
+      + '<svg viewBox="0 0 500 390" role="img" aria-label="Loads acting at the corresponding building-column points"><defs>'
+      + '<marker id="column-arrow-ll" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#ec1c24"/></marker>'
+      + '<marker id="column-arrow-dl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#111"/></marker></defs>'
+      + '<line class="column-structure" x1="' + columnX + '" y1="35" x2="' + columnX + '" y2="355"/><line class="column-ground" x1="195" y1="355" x2="305" y2="355"/>'
+      + rows + '<text class="column-axis-label" x="250" y="380" text-anchor="middle">Existing building column / frame</text></svg></div>';
+  }
+
+  function refreshColumnVisualization() {
+    var current = document.getElementById("column-schematic");
+    if (!current) return;
+    var holder = document.createElement("div");
+    holder.innerHTML = columnSchematicHtml();
+    current.replaceWith(holder.firstElementChild);
+  }
+
+  function columnCapacityHtml() {
+    var fields="", statuses="", allChecked=true, allOk=true;
+    for (var level=1;level<=columnLevelCount();level++) {
+      var key="LX"+level, capacity=S.columnCapacities[key], governing=governingLX(level), checked=capacity!==undefined&&capacity!==null&&!isNaN(capacity), ok=checked&&governing.value<=capacity;
+      if (!checked) allChecked=false;
+      if (checked&&!ok) allOk=false;
+      fields += '<label><span>Allowable horizontal load at ' + key + '</span><div class="caprow"><input data-column-capacity="' + key + '" type="number" inputmode="decimal" min="0" step="any" value="' + (checked?capacity:'') + '" placeholder="' + key + ' capacity"><div class="unit">' + U().force + '</div></div></label>';
+      if (checked) statuses += '<div class="column-capacity-point"><strong>' + key + '</strong><span>' + fmtForce(governing.value) + ' ' + U().force + ' required vs ' + fmtForce(capacity) + ' ' + U().force + ' capacity</span><em class="' + (ok?'is-ok':'is-bad') + '">' + (ok?'Applicable':'Exceeds capacity') + '</em></div>';
+    }
+    var summary=allChecked?'<div class="single-capacity-status ' + (allOk?'is-ok':'is-bad') + '"><strong>' + (allOk?'Applicable':'Exceeds capacity') + '</strong><span>Capacity checked independently at each building-column point.</span></div>':'';
+    return '<section class="single-capacity column-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div><div class="column-capacity-controls"><div class="column-capacity-fields">' + fields + '</div><button class="cap-check-btn column-capacity-submit" id="column-capacity-submit" type="button">Check capacity</button></div>' + summary + (statuses?'<div class="column-capacity-statuses">'+statuses+'</div>':'') + '</section>';
+  }
+
+  function refreshSingleCapacity() {
+    var current=document.querySelector(".single-point-section:not(.column-point-section) .single-capacity");
+    if (!current) return;
+    var holder=document.createElement("div");
+    holder.innerHTML=singleCapacityHtml();
+    var replacement=holder.firstElementChild;
+    current.replaceWith(replacement);
+    wireSingleCapacityControls(replacement);
+    try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
+  }
+
+  function wireSingleCapacityControls(root) {
+    if (!root) return;
+    var submit=root.querySelector("#single-capacity-submit");
+    if (submit) submit.addEventListener("click",function () {
+      var base=root.querySelector("#base-capacity-input"), side=root.querySelector("#side-capacity-input");
+      var baseRaw=base?base.value.trim():"", sideRaw=side?side.value.trim():"";
+      if (baseRaw!=="" && (!isFinite(Number(baseRaw)) || Number(baseRaw)<0)) return;
+      if (sideRaw!=="" && (!isFinite(Number(sideRaw)) || Number(sideRaw)<0)) return;
+      if (baseRaw!=="") S.baseCapacity=Number(baseRaw);
+      if (sideRaw!=="") S.sideCapacity=Number(sideRaw);
+      refreshSingleCapacity();
+    });
+  }
+
+  function refreshSingleConditions() {
+    var current = document.querySelector(".single-conditions");
+    if (!current) return;
+    var holder = document.createElement("div");
+    holder.innerHTML = singlePointConditionsHtml();
+    current.replaceWith(holder.firstElementChild);
+    wireSingleConditionControls();
+    try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
+  }
+
+  function wireDetailControls(root) {
+    root.querySelectorAll("[data-single-preview]").forEach(function (button) {
+      var show = function () { showSingleDetailPreview(button.getAttribute("data-single-preview"), button); };
+      button.addEventListener("mouseenter", show); button.addEventListener("focus", show);
+      button.addEventListener("mouseleave", closeSingleDetailPreview); button.addEventListener("blur", closeSingleDetailPreview);
+    });
+    root.querySelectorAll("[data-single-view]").forEach(function (button) { button.addEventListener("click", function () { closeSingleDetailPreview(); openSingleDetailModal(button.getAttribute("data-single-view")); }); });
+  }
+
+  function wireSingleConditionControls() {
+    var root = document.querySelector(".single-point-section:not(.column-point-section)") || document;
+    root.querySelectorAll("[data-single-slab]").forEach(function (button) { button.addEventListener("click", function () {
+      singlePointSelection.slab = button.getAttribute("data-single-slab");
+      singlePointSelection.detail = null;
+      refreshSingleConditions();
+      refreshSchematicBasePoint();
+    }); });
+    root.querySelectorAll("[data-single-detail]").forEach(function (button) { button.addEventListener("click", function () { singlePointSelection.detail = button.getAttribute("data-single-detail"); refreshSingleConditions(); refreshSchematicBasePoint(); }); });
+    root.querySelectorAll("[data-single-support]").forEach(function (button) { button.addEventListener("click", function () { singlePointSelection.support = button.getAttribute("data-single-support"); singlePointSelection.attachmentDetail = null; refreshSingleConditions(); refreshSchematicAttachmentPoints(); }); });
+    root.querySelectorAll("[data-single-attachment-detail]").forEach(function (button) { button.addEventListener("click", function () { singlePointSelection.attachmentDetail = button.getAttribute("data-single-attachment-detail"); refreshSingleConditions(); refreshSchematicAttachmentPoints(); }); });
+    wireDetailControls(root);
+  }
+
+  function refreshColumnConditions() {
+    var current = document.querySelector(".column-conditions");
+    if (!current) return;
+    var holder = document.createElement("div");
+    holder.innerHTML = columnPointConditionsHtml();
+    var replacement = holder.firstElementChild;
+    current.replaceWith(replacement);
+    wireColumnConditionControls(replacement);
+    if (window.WTAttachmentConfiguratorRefresh) {
+      window.WTAttachmentConfiguratorRefresh({ input: currentInput(), snapshot: currentSnapshot() });
+    }
+    try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
+  }
+
+  function wireColumnConditionControls(root) {
+    root = root || document;
+    root.querySelectorAll("[data-column-support]").forEach(function (button) { button.addEventListener("click", function () {
+      columnPointSelection.support = button.getAttribute("data-column-support");
+      columnPointSelection.attachmentDetail = null;
+      refreshColumnConditions();
+      refreshColumnVisualization();
+    }); });
+    root.querySelectorAll("[data-column-attachment-detail]").forEach(function (button) { button.addEventListener("click", function () {
+      columnPointSelection.attachmentDetail = button.getAttribute("data-column-attachment-detail");
+      refreshColumnConditions();
+      refreshColumnVisualization();
+    }); });
+    wireDetailControls(root);
+  }
+
+  function wireSinglePointControls() {
+    wireResultOptionTabs();
+    wireSingleConditionControls();
+    wireColumnConditionControls(document.querySelector(".column-conditions") || document);
+    wireSingleCapacityControls(document.querySelector(".single-point-section:not(.column-point-section) .single-capacity"));
+    var columnSubmit=document.getElementById("column-capacity-submit");
+    if (columnSubmit) columnSubmit.addEventListener("click",function () {
+      var next={},valid=true;
+      document.querySelectorAll("[data-column-capacity]").forEach(function (input) {
+        var raw=input.value.trim(),key=input.getAttribute("data-column-capacity");
+        if (raw==="") return;
+        if (!isFinite(Number(raw))||Number(raw)<0) { valid=false; return; }
+        next[key]=Number(raw);
+      });
+      if (!valid) return;
+      S.columnCapacities=next;
+      renderResults();
+    });
+  }
+
+  function wireResultOptionTabs() {
+    document.querySelectorAll("[data-result-option]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        S.attachmentSolution = button.getAttribute("data-result-option");
+        document.querySelectorAll("[data-result-option]").forEach(function (item) {
+          var active=item.getAttribute("data-result-option")===S.attachmentSolution;
+          item.setAttribute("aria-selected",String(active));
+          item.setAttribute("tabindex",active?"0":"-1");
+        });
+        document.querySelectorAll("[data-result-section]").forEach(function (section) {
+          section.hidden=section.getAttribute("data-result-section")!==S.attachmentSolution;
+        });
+        try { localStorage.setItem(CALCULATOR_DRAFT_KEY,JSON.stringify(currentInput())); } catch (error) {}
+      });
+    });
+  }
+
   function renderResults() {
     var root = document.getElementById("result-root");
     var ready = selectedInputs.units && selectedInputs.type && selectedInputs.height && selectedInputs.span && selectedInputs.overhang
@@ -273,17 +701,22 @@
     var sub = schemeLbl + " · span A = " + fmtLen(S.span) + " · overhang X = " + fmtLen(S.overhang)
             + " · characteristic values in " + u.force + (S.factored ? " · factored" : "");
 
+    var values = singlePointValues();
+    var columnValues = columnPointValues();
     var html = '<div class="results-reveal"><div class="results-head">'
       + '<div><p class="title">' + title + '</p><p class="sub">' + sub + '</p></div>'
-      + '</div><div class="results-verdict-row">' + verdictHtml() + "</div>";
-
-    var resultsTable = S.type === "boulder" ? boulderTable() : wallResults();
-    html += '<div class="results-visual-grid"><div class="results-table">' + resultsTable + legendHtml()
-      + '</div>' + schematicPanelHtml() + '</div>';
-
-    html += '<div id="attachment-config-root"></div>' + notesHtml() + '</div>';
+      + '</div><div class="result-solution-tabs" role="tablist" aria-label="Choose attachment solution">'
+      + '<button type="button" role="tab" data-result-option="single" aria-selected="' + (S.attachmentSolution==="single") + '" tabindex="' + (S.attachmentSolution==="single"?'0':'-1') + '"><span>OPTION 1:</span> Single-point attachment</button>'
+      + '<button type="button" role="tab" data-result-option="beams" aria-selected="' + (S.attachmentSolution==="beams") + '" tabindex="' + (S.attachmentSolution==="beams"?'0':'-1') + '"><span>OPTION 2:</span> Walltopia support beams</button></div>'
+      + '<section class="single-point-section" data-result-section="single"' + (S.attachmentSolution==="single"?'':' hidden') + '><div class="single-point-heading"><div><h2>Direct Single-Point Attachment</h2><p>The climbing wall is connected directly to the existing structure at individual attachment points.</p></div></div>'
+      + '<div class="single-point-grid' + (Number(S.levels) >= 3 ? ' is-three-levels' : '') + '"><div class="single-point-left">' + singlePointTableHtml(values) + singlePointConditionsHtml() + '</div>' + schematicPanelHtml() + '</div>'
+      + singleCapacityHtml() + notesHtml() + '</section>'
+      + '<section class="single-point-section column-point-section" data-result-section="beams"' + (S.attachmentSolution==="beams"?'':' hidden') + '><div class="single-point-heading"><div><h2>Walltopia Support Beams Between Building Columns</h2><p>Walltopia support beams are added between the existing building columns, and the climbing wall is attached to the beams.</p></div></div>'
+      + '<div class="column-point-body">' + columnPointTableHtml(columnValues) + columnPointConditionsHtml() + '<div id="attachment-config-root" data-visual-only="true"></div></div>'
+      + columnCapacityHtml() + notesHtml() + '</section></div>';
     root.innerHTML = html;
     wireSchematicView();
+    wireSinglePointControls();
     var calculatorPayload = { input: currentInput(), snapshot: currentSnapshot() };
     window.WTCalculatorPayload = calculatorPayload;
     window.dispatchEvent(new CustomEvent("wtcalculatorchange", { detail: calculatorPayload }));
@@ -383,7 +816,55 @@
       + '<button type="button" data-schematic-action="in" aria-label="Zoom in">+</button>'
       + '<button type="button" data-schematic-action="reset" aria-label="Reset view">↺</button></div>'
       + '<div class="schematic-viewport" id="schematic-viewport" aria-label="Drag to move the drawing">'
-      + schematicSvg() + '</div></div>';
+      + schematicSvg() + '</div><div class="attachment-hover-card side-base-detail-preview" id="side-base-detail-preview" hidden></div></div>';
+  }
+
+  function refreshSchematicBasePoint() {
+    var point = document.getElementById("side-base-detail-point");
+    if (!point) return;
+    var visible = !!singlePointSelection.detail;
+    point.classList.toggle("is-hidden", !visible);
+    point.setAttribute("tabindex", visible ? "0" : "-1");
+    point.setAttribute("aria-label", singlePointSelection.detail ? "Preview base detail " + singlePointSelection.detail : "Select an applicable base detail");
+    if (!visible) hideSchematicBasePreview();
+  }
+  function refreshSchematicAttachmentPoints() {
+    var visible = !!singlePointSelection.attachmentDetail;
+    document.querySelectorAll(".side-attachment-detail-point").forEach(function (point) {
+      point.classList.toggle("is-hidden", !visible);
+      point.setAttribute("tabindex", visible ? "0" : "-1");
+      point.setAttribute("aria-label", visible ? (singlePointSelection.attachmentDetail ? "Preview attachment detail " + singlePointSelection.attachmentDetail + " at X" + point.getAttribute("data-side-level") : "Select an applicable attachment detail for X" + point.getAttribute("data-side-level")) : "Select an attachment method");
+    });
+    if (!visible) hideSchematicBasePreview();
+  }
+  function showSchematicBasePreview() {
+    var preview = document.getElementById("side-base-detail-preview");
+    if (!preview || !singlePointSelection.detail) return;
+    var code = singlePointSelection.detail;
+    if (!code) {
+      preview.innerHTML = '<span class="attachment-label">Base point</span><h3>Select an attachment detail</h3><p>Choose one of the applicable CF details to preview it here.</p>';
+    } else {
+      preview.innerHTML = '<h3>' + code + ' · Base connection detail</h3><img class="attachment-preview-image" src="' + singleDetailImagePath(code) + '" alt="' + code + ' base connection detail"><button class="attachment-full-trigger" type="button" data-side-base-view="' + code + '">View full detail</button>';
+      preview.querySelector("[data-side-base-view]").addEventListener("click", function () { openSingleDetailModal(code); });
+    }
+    preview.hidden = false;
+  }
+  function hideSchematicBasePreview() {
+    var preview = document.getElementById("side-base-detail-preview");
+    if (preview) preview.hidden = true;
+  }
+  function showSchematicAttachmentPreview(level) {
+    var preview = document.getElementById("side-base-detail-preview");
+    var code = singlePointSelection.attachmentDetail;
+    var meta = singleDetailMeta[code];
+    if (!preview || !singlePointSelection.attachmentDetail) return;
+    if (!meta) {
+      preview.innerHTML = '<span class="attachment-label">Attachment point X' + level + '</span><h3>Select an attachment detail</h3><p>Choose one of the applicable details to preview it here.</p>';
+    } else {
+      preview.innerHTML = '<h3>X' + level + ' · ' + code + ' · ' + meta.title + '</h3><img class="attachment-preview-image" src="' + singleDetailImagePath(code) + '" alt="' + code + ' ' + meta.title + '"><button class="attachment-full-trigger" type="button" data-side-level-view="' + code + '">View full detail</button>';
+      preview.querySelector("[data-side-level-view]").addEventListener("click", function () { openSingleDetailModal(code); });
+    }
+    preview.hidden = false;
   }
 
   function wireSchematicView() {
@@ -458,6 +939,27 @@
     }
     viewport.addEventListener("pointerup", stopDrag);
     viewport.addEventListener("pointercancel", stopDrag);
+    var basePoint = document.getElementById("side-base-detail-point");
+    var basePreview = document.getElementById("side-base-detail-preview");
+    if (basePoint) {
+      basePoint.addEventListener("pointerdown", function (event) { event.stopPropagation(); });
+      basePoint.addEventListener("mouseenter", showSchematicBasePreview);
+      basePoint.addEventListener("focus", showSchematicBasePreview);
+      basePoint.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); }, 100); });
+      basePoint.addEventListener("blur", function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); });
+    }
+    if (basePreview) basePreview.addEventListener("mouseleave", hideSchematicBasePreview);
+    document.querySelectorAll(".side-attachment-detail-point").forEach(function (point) {
+      var show = function () { showSchematicAttachmentPreview(point.getAttribute("data-side-level")); };
+      point.addEventListener("pointerdown", function (event) { event.stopPropagation(); });
+      point.addEventListener("mouseenter", show);
+      point.addEventListener("focus", show);
+      point.addEventListener("click", show);
+      point.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); }, 100); });
+      point.addEventListener("blur", function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); });
+    });
+    refreshSchematicBasePoint();
+    refreshSchematicAttachmentPoints();
     applyView();
   }
 
@@ -506,7 +1008,7 @@
       return { ll: Number(ll || 0), dl: Number(dl || 0) };
     }
     function reactionText(key, value) { return key + " = " + fmtForce(value) + " " + U().force; }
-    var attachments = "", forces = "", heightDims = "";
+    var attachments = "", attachmentPoints = "", attachmentPointLabels = "", forces = "", heightDims = "";
     function horizontalReaction(key, value, y, kind, labelY) {
       var negative = value < 0, zero = Math.abs(value) < .000001;
       var start = negative ? forceCutX : 40, end = negative ? 40 : forceCutX;
@@ -516,9 +1018,11 @@
       var n = i + 1, x = xAt(z), y = yAt(z), dimX = 142 - i * 18;
       var rx = reaction("RX" + n);
       attachments += '<line class="side-support" x1="' + attachmentPlaneX + '" y1="' + y + '" x2="' + x + '" y2="' + y + '"/><path class="side-anchor" d="M' + attachmentPlaneX + ' ' + (y-9) + 'v18l10-9z"/>';
+      attachmentPoints += '<circle class="side-attachment-detail-point' + (singlePointSelection.attachmentDetail ? '' : ' is-hidden') + '" data-side-level="' + n + '" cx="' + attachmentPlaneX + '" cy="' + y + '" r="7" tabindex="' + (singlePointSelection.attachmentDetail ? '0' : '-1') + '" role="button"><title>Attachment point X' + n + '</title></circle>';
+      attachmentPointLabels += '<text class="side-point-label" x="' + (attachmentPlaneX + 12) + '" y="' + (y - 11) + '">X' + n + '</text>';
       forces += horizontalReaction('RX' + n, rx.ll, y - 8, 'll', y - 15)
         + horizontalReaction('RX' + n, rx.dl, y + 8, 'dl', y + 22);
-      heightDims += '<line class="side-extension" x1="' + dimX + '" y1="' + y + '" x2="' + attachmentPlaneX + '" y2="' + y + '"/><line class="side-dimension" x1="' + dimX + '" y1="' + groundY + '" x2="' + dimX + '" y2="' + y + '"/><path class="side-tick" d="M' + (dimX-5) + ' ' + (groundY+5) + 'l10-10M' + (dimX-5) + ' ' + (y+5) + 'l10-10"/><text class="side-dim-label" x="' + (dimX-8) + '" y="' + ((groundY+y)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (dimX-8) + ' ' + ((groundY+y)/2) + ')">H' + n + ' = ' + dimValue(z) + '</text>';
+      heightDims += '<line class="side-extension" x1="' + dimX + '" y1="' + y + '" x2="' + attachmentPlaneX + '" y2="' + y + '"/><line class="side-dimension" x1="' + dimX + '" y1="' + groundY + '" x2="' + dimX + '" y2="' + y + '"/><path class="side-tick" d="M' + (dimX-5) + ' ' + (groundY+5) + 'l10-10M' + (dimX-5) + ' ' + (y+5) + 'l10-10"/><text class="side-dim-label" x="' + (dimX-8) + '" y="' + ((groundY+y)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (dimX-8) + ' ' + ((groundY+y)/2) + ')">Z' + n + ' = ' + dimValue(z) + '</text>';
     });
     var rx0 = reaction("RX0"), rz0 = reaction("RZ0");
     function baseHorizontal(value, y, kind, labelY) {
@@ -531,7 +1035,7 @@
     }
     function baseVertical(value, x, kind, labelY) {
       var negative = value < 0, zero = Math.abs(value) < .000001;
-      var start = negative ? 392 : 452, end = negative ? 452 : 392;
+      var start = negative ? 376 : 436, end = negative ? 436 : 376;
       return '<line class="side-reaction is-' + kind + (zero ? ' is-zero' : '') + '" x1="' + x + '" y1="' + start + '" x2="' + x + '" y2="' + end + '"' + (zero ? '' : ' marker-end="url(#side-force-' + kind + ')"') + '/><text class="side-reaction-label side-rz0-label is-' + kind + '" x="226" y="' + labelY + '" text-anchor="end">RZ0 ' + kind.toUpperCase() + ' = ' + fmtForce(value) + ' ' + U().force + '</text>';
     }
     return '<svg viewBox="0 0 ' + svgWidth + ' 520" role="img" aria-label="Dynamic climbing wall side elevation">'
@@ -543,9 +1047,13 @@
       + '<line class="side-extension" x1="' + attachmentPlaneX + '" y1="' + topY + '" x2="' + attachmentPlaneX + '" y2="30"/><line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + topX + '" y2="30"/><line class="side-dimension" x1="' + attachmentPlaneX + '" y1="30" x2="' + topX + '" y2="30"/><path class="side-tick" d="M' + (attachmentPlaneX-5) + ' 35l10-10M' + (topX-5) + ' 35l10-10"/><text class="side-overhang-label" x="' + ((attachmentPlaneX+topX)/2) + '" y="20" text-anchor="middle">X = ' + dimValue(overhang) + ' (overhang)</text>'
       + '<line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + wallDimX + '" y2="' + topY + '"/><line class="side-dimension" x1="' + wallDimX + '" y1="' + groundY + '" x2="' + wallDimX + '" y2="' + topY + '"/><path class="side-tick" d="M' + (wallDimX-5) + ' ' + (groundY+5) + 'l10-10M' + (wallDimX-5) + ' ' + (topY+5) + 'l10-10"/><text class="side-wall-height" x="' + (wallDimX+15) + '" y="' + ((groundY+topY)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (wallDimX+15) + ' ' + ((groundY+topY)/2) + ')">Climbing wall height = ' + dimValue(wallHeight) + '</text>'
       + '<text class="side-surface-label" x="' + surfaceLabelX + '" y="' + surfaceLabelY + '" text-anchor="middle" transform="rotate(' + surfaceAngle + ' ' + surfaceLabelX + ' ' + surfaceLabelY + ')">Climbing surface</text>'
-      + baseHorizontal(rx0.ll, 446, 'll', 488) + baseHorizontal(rx0.dl, 462, 'dl', 504)
+      + (S.type === "wall" ? baseHorizontal(rx0.ll, 446, 'll', 488) + baseHorizontal(rx0.dl, 462, 'dl', 504) : "")
       + baseVertical(rz0.ll, 197, 'll', 340) + baseVertical(rz0.dl, 213, 'dl', 354)
       + '<g class="side-axis"><line x1="26" y1="468" x2="26" y2="420" marker-end="url(#side-force-arrow)"/><line x1="26" y1="468" x2="80" y2="468" marker-end="url(#side-force-arrow)"/><text x="5" y="420">+Z</text><text x="65" y="488">+X</text></g>'
+      + attachmentPointLabels
+      + '<text class="side-point-label" x="' + (baseX - 12) + '" y="' + (groundY - 13) + '" text-anchor="end">X0</text>'
+      + attachmentPoints
+      + '<circle id="side-base-detail-point" class="side-base-detail-point' + (singlePointSelection.detail ? '' : ' is-hidden') + '" cx="' + baseX + '" cy="' + groundY + '" r="7" tabindex="' + (singlePointSelection.detail ? '0' : '-1') + '" role="button"><title>Base attachment detail</title></circle>'
       + "</svg>";
   }
 
@@ -553,7 +1061,6 @@
     var u = U();
     var code = S.type === "wall" ? u.codeWall : u.codeBoulder;
     return '<div class="notes">'
-      + '<h3>Notes</h3>'
       + '<div class="preliminary-banner"><strong>Preliminary loads — NOT for construction.</strong></div>'
       + '<ol>'
       + '<li>Coefficient for dead load = <b>' + u.dl + '</b>.</li>'
@@ -571,7 +1078,13 @@
 
   function currentInput() {
     return { units: S.units, type: S.type, height: S.height, levels: S.levels,
-      overhang: S.overhang, span: S.span, force: S.force, factored: S.factored, capacity: S.cap };
+      overhang: S.overhang, span: S.span, force: S.force, factored: S.factored,
+      capacity: S.cap, baseCapacity: S.baseCapacity, sideCapacity: S.sideCapacity,
+      columnCapacities: S.columnCapacities,
+      attachmentSolution: S.attachmentSolution,
+      supportingSlab: singlePointSelection.slab, baseDetail: singlePointSelection.detail,
+      supportingStructure: singlePointSelection.support, attachmentDetail: singlePointSelection.attachmentDetail,
+      columnSupportingStructure: columnPointSelection.support, columnAttachmentDetail: columnPointSelection.attachmentDetail };
   }
   function applyInput(inp) {
     if (!inp) return;
@@ -579,6 +1092,16 @@
       if (inp[k] !== undefined && inp[k] !== null) S[k] = inp[k];
     });
     S.cap = (inp.capacity !== undefined && inp.capacity !== null) ? inp.capacity : null;
+    S.baseCapacity = inp.baseCapacity !== undefined && inp.baseCapacity !== null ? Number(inp.baseCapacity) : null;
+    S.sideCapacity = inp.sideCapacity !== undefined && inp.sideCapacity !== null ? Number(inp.sideCapacity) : null;
+    S.columnCapacities = inp.columnCapacities && typeof inp.columnCapacities === "object" ? inp.columnCapacities : {};
+    S.attachmentSolution = inp.attachmentSolution === "beams" ? "beams" : "single";
+    if (inp.supportingSlab) singlePointSelection.slab = inp.supportingSlab;
+    if (inp.baseDetail) singlePointSelection.detail = inp.baseDetail;
+    if (inp.supportingStructure) singlePointSelection.support = inp.supportingStructure;
+    if (inp.attachmentDetail) singlePointSelection.attachmentDetail = inp.attachmentDetail;
+    if (inp.columnSupportingStructure) columnPointSelection.support = inp.columnSupportingStructure;
+    if (inp.columnAttachmentDetail) columnPointSelection.attachmentDetail = inp.columnAttachmentDetail;
     var capacityInput = document.getElementById("cap-input");
     var factoredInput = document.getElementById("chk-factored");
     if (capacityInput) capacityInput.value = S.cap === null ? "" : S.cap;
@@ -589,7 +1112,24 @@
   }
   function currentSnapshot() {
     var u = U(), gov = govColumnLoad();
-    var verdict = (S.cap === null || isNaN(S.cap)) ? "neutral" : (gov.value <= S.cap ? "ok" : "bad");
+    var hasCapacityCheck = false, allCapacityChecksPass = true;
+    if (S.baseCapacity !== null) {
+      hasCapacityCheck = true;
+      if (governingRZ0().value > S.baseCapacity) allCapacityChecksPass = false;
+    }
+    if (S.sideCapacity !== null) {
+      hasCapacityCheck=true;
+      if (totalHorizontalReaction().value>Number(S.sideCapacity)) allCapacityChecksPass=false;
+    }
+    for (var checkedLevel = 1; checkedLevel <= columnLevelCount(); checkedLevel++) {
+      var checkedKey = "LX" + checkedLevel;
+      var checkedCapacity = S.columnCapacities[checkedKey];
+      if (checkedCapacity !== undefined && checkedCapacity !== null && !isNaN(checkedCapacity)) {
+        hasCapacityCheck = true;
+        if (governingLX(checkedLevel).value > Number(checkedCapacity)) allCapacityChecksPass = false;
+      }
+    }
+    var verdict = !hasCapacityCheck ? "neutral" : (allCapacityChecksPass ? "ok" : "bad");
     var title = (S.type === "wall" ? "Climbing wall " : "Boulder wall ") + fmtLen(S.height);
     var levelForces = [], levelDeadForces = [];
     if (S.type === "boulder") {
@@ -612,6 +1152,10 @@
 
   // leave the editing context: keep the current inputs, but detach from the saved project
   function exitEditing() {
+    if (P) {
+      location.href = "dashboard.html?focus=" + encodeURIComponent(P.id);
+      return;
+    }
     P = null;
     history.replaceState(null, "", "index.html");
     renderProjectBar();
@@ -638,13 +1182,12 @@
       html += '<div class="project-more-menu" id="pb-more-menu" hidden><button type="button" id="pb-details">Edit details</button><button type="button" id="pb-saveas">Save as new</button><button type="button" id="pb-export">Export PDF</button></div></div>';
     } else {
       html += '<button class="btn primary small" id="pb-save">Save as project</button>';
-      html += '<span class="hint">Save this design with tags and additional project information.</span>';
     }
     html += "</div>";
     root.innerHTML = html;
     if (P) {
       root.querySelector("#pb-exit").onclick = exitEditing;
-      root.querySelector("#pb-update").onclick = function () { doSave("update"); };
+      root.querySelector("#pb-update").onclick = function () { doSave("update", true); };
       root.querySelector("#pb-more").onclick = function () {
         var menu = root.querySelector("#pb-more-menu");
         var opening = menu.hidden;
@@ -655,6 +1198,13 @@
       root.querySelector("#pb-details").onclick = function () { openSavePanel(false); };
       root.querySelector("#pb-saveas").onclick = function () { openSavePanel(true); };
       root.querySelector("#pb-export").onclick = function () {
+        var moreMenu = root.querySelector("#pb-more-menu");
+        var moreButton = root.querySelector("#pb-more");
+        if (moreMenu) moreMenu.hidden = true;
+        if (moreButton) {
+          moreButton.setAttribute("aria-expanded", "false");
+          moreButton.innerHTML = "More &#9656;";
+        }
         if (window.WTExportPdf) window.WTExportPdf({ project: P, input: currentInput(), snapshot: currentSnapshot() });
       };
     } else {
@@ -704,7 +1254,7 @@
     return { name: name, tags: tags, properties: properties, input: currentInput(), snapshot: currentSnapshot() };
   }
 
-  async function doSave(mode) {
+  async function doSave(mode, returnToProjects) {
     var root = projectRoot();
     var msg = root.querySelector("#sp-msg");
     var payload;
@@ -722,6 +1272,11 @@
         : await window.WTApi.createProject(payload);
       P = res.project;
       history.replaceState(null, "", "index.html?project=" + P.id);
+      if (mode === "update" && returnToProjects) {
+        try { sessionStorage.setItem("walltopia.projects.flash", "Project updated"); } catch (error) {}
+        location.href = "dashboard.html?focus=" + encodeURIComponent(P.id);
+        return;
+      }
       renderProjectBar();
       flash(mode === "update" ? "Project updated." : "Project saved.");
     } catch (e) {
@@ -775,41 +1330,10 @@
       if (savedDraft && typeof savedDraft === "object") applyInput(savedDraft);
     } catch (error) {}
   }
-  document.getElementById("cap-input").addEventListener("input", function (e) {
-    S.cap = null;
-    e.target.closest(".caprow").classList.remove("is-applied");
-    var hint = document.getElementById("cap-hint");
-    hint.classList.remove("is-applied");
-    hint.textContent = e.target.value.trim() === ""
-      ? "Horizontal load one existing column / frame can carry."
-      : "Press Check capacity or Enter to show the result.";
-    renderResults();
-  });
-  function applyCapacity() {
-    var input = document.getElementById("cap-input");
-    var value = input.value.trim();
-    if (value === "" || !isFinite(Number(value)) || Number(value) < 0) return;
-    S.cap = Number(value);
-    renderResults();
-    input.closest(".caprow").classList.add("is-applied");
-    var hint = document.getElementById("cap-hint");
-    hint.classList.remove("is-applied");
-    hint.textContent = "Horizontal load one existing column / frame can carry.";
-    input.blur();
-    var verdict = document.querySelector(".results-verdict-row .verdict");
-    if (verdict) verdict.classList.add("is-confirmed");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-  document.getElementById("cap-input").addEventListener("keydown", function (e) {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    applyCapacity();
-  });
-  document.getElementById("cap-submit").addEventListener("click", applyCapacity);
   document.getElementById("chk-factored").addEventListener("change", function (e) {
     S.factored = e.target.checked; renderResults();
   });
-  document.getElementById("reset-calculator").addEventListener("click", function () {
+  function resetCalculator(scrollToTop) {
     S.units = "EU";
     S.type = "wall";
     S.height = 12;
@@ -819,20 +1343,27 @@
     S.force = 1;
     S.factored = false;
     S.cap = null;
+    S.baseCapacity = null;
+    S.sideCapacity = null;
+    S.columnCapacities = {};
+    S.attachmentSolution = "single";
+    singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
+    columnPointSelection = { support: null, attachmentDetail: null };
     Object.keys(selectedInputs).forEach(function (key) { selectedInputs[key] = false; });
     schematicView = { scale: 1, panX: 0, panY: 0 };
+    P = null;
 
-    var capInput = document.getElementById("cap-input");
-    capInput.value = "";
-    capInput.closest(".caprow").classList.remove("is-applied");
     document.getElementById("chk-factored").checked = false;
-    var capHint = document.getElementById("cap-hint");
-    capHint.classList.remove("is-applied");
-    capHint.textContent = "Horizontal load one existing column / frame can carry.";
-    try { localStorage.removeItem(CALCULATOR_DRAFT_KEY); } catch (error) {}
+    history.replaceState(null, "", "index.html");
     clampAndRender();
-    document.querySelector(".panel").scrollTo({ top: 0, behavior: "smooth" });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    try { localStorage.removeItem(CALCULATOR_DRAFT_KEY); } catch (error) {}
+    if (scrollToTop) {
+      document.querySelector(".panel").scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+  document.getElementById("reset-calculator").addEventListener("click", function () {
+    resetCalculator(true);
   });
   clampAndRender();
 
@@ -842,6 +1373,7 @@
       if (!user) P = null; // logged out — drop the editing context so guests can't hit protected actions
       renderProjectBar();
     });
+    window.addEventListener("wtauth:logout", function () { resetCalculator(true); });
     renderProjectBar();
     maybeLoadProjectFromUrl();
   }

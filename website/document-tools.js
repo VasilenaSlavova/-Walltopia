@@ -34,10 +34,14 @@
     var project = ctx.project || {};
     var input = ctx.input || {};
     var snapshot = ctx.snapshot || {};
-    var loadTable = document.querySelector("table.loads");
+    var loadTables = Array.prototype.slice.call(document.querySelectorAll(".single-point-table"));
+    if (!loadTables.length) {
+      var legacyLoadTable = document.querySelector("table.loads");
+      if (legacyLoadTable) loadTables.push(legacyLoadTable);
+    }
     var sideSvg = cleanSvg('svg[aria-label="Dynamic climbing wall side elevation"]');
     var acsSvg = cleanSvg('svg[aria-label="Interactive ACS geometry and attachment points"]');
-    if (!loadTable || !sideSvg || !acsSvg) {
+    if (!loadTables.length || !sideSvg || !acsSvg) {
       // Wait briefly for the result table and both SVG diagrams to render.
       var retries = Number(ctx.retryCount || 0);
       if (retries < 30) {
@@ -50,10 +54,16 @@
       return;
     }
 
-    var baseCode = selectedText('[data-base-detail][aria-pressed="true"] b', "CF-01");
-    var levelCode = selectedText('[data-detail][aria-pressed="true"] b', "CW-01");
-    var slab = selectedText('[data-slab][aria-pressed="true"]', "Solid concrete slab");
-    var method = selectedText('[data-support][aria-pressed="true"]', "Solid concrete wall / column");
+    var loadTablesHtml = loadTables.map(function (table, index) {
+      var clone = table.cloneNode(true);
+      clone.classList.add("loads");
+      var label = index === 0 ? "OPTION 1 — LOADS AT ACS ATTACHMENT POINTS" : "OPTION 2 — LOADS ON BUILDING COLUMNS";
+      return '<h3 class="load-option-title">' + label + '</h3>' + clone.outerHTML;
+    }).join("");
+    var baseCode = selectedText('[data-single-detail][aria-pressed="true"] b, [data-base-detail][aria-pressed="true"] b', "Not selected");
+    var levelCode = selectedText('[data-column-attachment-detail][aria-pressed="true"] b, [data-single-attachment-detail][aria-pressed="true"] b, [data-detail][aria-pressed="true"] b', "Not selected");
+    var slab = selectedText('[data-single-slab][aria-pressed="true"], [data-slab][aria-pressed="true"]', "Not selected");
+    var method = selectedText('[data-column-support][aria-pressed="true"], [data-single-support][aria-pressed="true"], [data-support][aria-pressed="true"]', "Not selected");
     var factored = !!input.factored;
     var hasCapacity = input.capacity !== null && input.capacity !== undefined && input.capacity !== "" && !isNaN(Number(input.capacity));
     var capacityText = hasCapacity ? Number(input.capacity) + " " + (snapshot.unit || "kN") : "Not provided";
@@ -95,6 +105,7 @@
       + '.applicability{display:flex;align-items:center;margin-top:3mm;width:100%;min-height:18mm;padding:3mm 4mm;border:1px solid #cfd3da;border-left:3px solid #707684;background:#f4f5f7}.applicability-icon{display:block;flex:0 0 8mm;font-size:21px;line-height:1;font-weight:700;color:#707684}.applicability-copy{display:block;flex:1}.applicability strong{display:block;margin:0 0 1.2mm;font-size:13.3px;line-height:1.1}.applicability span{display:block;font-size:11.2px;line-height:1.25;color:#202331}.applicability.is-ok{border-color:#b9ddc8;border-left-color:#1f8a4c;background:#e8f5ed}.applicability.is-ok .applicability-icon,.applicability.is-ok strong{color:#137a3c}.applicability.is-bad{border-color:#efc4c6;border-left-color:#c30f16;background:#fdeaeb}.applicability.is-bad .applicability-icon,.applicability.is-bad strong{color:#c30f16}'
       + 'h2{font-size:14px;margin:6mm 0 2mm}.configuration{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm 6mm;border-top:1px solid #d9dce3;border-bottom:1px solid #d9dce3;padding:4mm 0;font-size:10.7px}.configuration b{display:block;margin-top:1mm;font-size:12.7px}.props{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:4mm}'
       + '.loads{width:100%;border-collapse:collapse;font-size:10.7px}.loads th,.loads td{padding:2.4mm;border-bottom:1px solid #d9dce3;text-align:right}.loads th:first-child,.loads td:first-child{text-align:left}.loads thead{border-bottom:1.5px solid #202331}.loads th{color:#707684}.loads th:nth-child(3),.loads th:nth-child(5),.loads td:nth-child(3),.loads td:nth-child(5){color:#ec1c24}'
+      + '.load-option-title{margin:3.5mm 0 1.5mm;color:#202331;font-size:10.5px;letter-spacing:.2px}'
       + '.warning{margin-top:6mm;border-top:1.5px solid #ec1c24;border-bottom:1px solid #d9dce3;padding:3mm;font-size:10.2px}.footer{position:absolute;left:4mm;right:4mm;bottom:4mm;color:#707684;font-size:9.6px;display:flex;justify-content:space-between}'
       + '.land-head{border-bottom:1.6px solid #ec1c24;padding-bottom:3mm}.land-head h1{font-size:22px;margin:0}.land-grid{display:grid;grid-template-columns:31% 69%;height:158mm}.side-panel{border-right:1.6px solid #ec1c24;padding:4mm 7mm 0 0}.acs-panel{padding:4mm 0 0 7mm}.section-title{font-weight:800;font-size:13px}.side-svg{height:128mm;display:grid;place-items:center}.acs-svg{height:101mm;display:grid;place-items:center}.side-svg svg{width:100%;height:100%}.acs-svg svg{width:100%;height:100%}'
       + '.schematic .side-ground{fill:none;stroke:#202331;stroke-width:2.2}.schematic .side-surface{fill:none;stroke:#2463eb;stroke-width:2.2}.schematic .side-support{stroke:#202331;stroke-width:1.5}.schematic .side-anchor{fill:#fff;stroke:#8b919d}.schematic .side-extension,.schematic .side-dimension,.schematic .side-tick,.schematic .side-hatch{fill:none;stroke:#8b919d}.schematic .side-attachment-plane{stroke:#8b919d}.schematic .side-reaction{stroke:#ec1c24;stroke-width:2}.schematic .side-reaction.is-negative{stroke:#172d63}.schematic .side-reaction-label{fill:#ec1c24;font-size:11.8px;font-weight:700}.schematic .side-reaction-label.is-negative{fill:#172d63}.schematic svg text:not(.side-reaction-label){fill:#64748b}.schematic .side-axis line{stroke:#202331;stroke-width:2}'
@@ -115,7 +126,7 @@
       + '<div><span class="meta-label">Units</span><b>' + (input.units === "US" ? "Imperial" : "Metric") + '</b></div><div><span class="meta-label">Column span A</span><b>' + esc(input.span) + ' m</b></div>'
       + '<div><span class="meta-label">Overhang X</span><b>' + esc(input.overhang) + ' m</b></div><div><span class="meta-label">Values</span><b>' + (factored ? "Factored" : "Characteristic") + '</b></div>'
       + '<div><span class="meta-label">Standard</span><b>EN 12572-1</b></div><div class="props">' + propertyRows(project) + '</div></div>'
-      + '<h2>LOADS AT GOVERNING FORCE LEVEL</h2>' + loadTable.outerHTML
+      + '<h2>LOADS AT SELECTED FORCE LEVEL</h2>' + loadTablesHtml
       + '<div class="warning"><b>PRELIMINARY LOADS — NOT FOR CONSTRUCTION.</b> All calculated values and selected attachment details must be reviewed and verified by the responsible structural engineer before use. The application manual is an inseparable part of this report.</div>'
       + '<div class="footer"><span>Prepared through Walltopia Preliminary Loads Calculator</span><span>Page 1</span></div></section>');
 

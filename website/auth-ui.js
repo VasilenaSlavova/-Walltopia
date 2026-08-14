@@ -3,6 +3,7 @@
 (function () {
   "use strict";
   var AUTH_PREVIEW_KEY = "walltopia_auth_preview";
+  var CALCULATOR_DRAFT_KEY = "walltopia.calculator.draft.v1";
   var current = null;          // user object, or null when guest
   var hasAuthPreview = false;
   try {
@@ -143,17 +144,26 @@
     window.dispatchEvent(new CustomEvent("wtauth:change", { detail: current }));
   }
 
+  async function logOut() {
+    try { await window.WTApi.logout(); } catch (e) {}
+    try { localStorage.removeItem(CALCULATOR_DRAFT_KEY); } catch (e) {}
+    setUser(null);
+    window.dispatchEvent(new CustomEvent("wtauth:logout"));
+  }
+
   function renderSlot() {
     var slot = document.getElementById("auth-slot");
     if (!slot) return;
     slot.innerHTML = "";
     if (current) {
       var wrap = h("div", { class: "auth-user" });
-      var initials = (current.name || "?").trim().charAt(0).toUpperCase();
-      wrap.appendChild(h("a", { href: "dashboard.html", class: "auth-name", title: current.email },
-        '<span class="auth-avatar">' + initials + "</span>" + escapeHtml(current.name)));
+      var fullName = (current.name || "").trim();
+      var firstName = fullName.split(/\s+/)[0] || current.email || "User";
+      var initials = firstName.charAt(0).toUpperCase();
+      wrap.appendChild(h("a", { href: "dashboard.html", class: "auth-name", title: fullName || current.email, "aria-label": "Open profile for " + (fullName || current.email) },
+        '<span class="auth-avatar">' + initials + "</span>"));
       var out = h("button", { class: "auth-btn ghost", type: "button" }, "Log out");
-      out.onclick = async function () { try { await window.WTApi.logout(); } catch (e) {} setUser(null); };
+      out.onclick = logOut;
       wrap.appendChild(out);
       slot.appendChild(wrap);
     } else {
@@ -175,7 +185,7 @@
     current: function () { return current; },
     ready: ready,
     open: open,
-    logout: async function () { try { await window.WTApi.logout(); } catch (e) {} setUser(null); },
+    logout: logOut,
     // resolves with the user (opens modal if needed); rejects if the user cancels
     requireAuth: function (m) {
       if (current) return Promise.resolve(current);

@@ -8,6 +8,16 @@
   var selectionMode = false;
   var currentProjects = [];
   var debounce;
+  var PROJECT_RETURN_KEY = "walltopia.projects.return.v1";
+  var projectReturnState = null;
+  try {
+    projectReturnState = JSON.parse(sessionStorage.getItem(PROJECT_RETURN_KEY) || "null");
+    if (projectReturnState && projectReturnState.filters) filters = Object.assign(filters, projectReturnState.filters);
+  } catch (error) {}
+  if (!projectReturnState) {
+    var focusedProject = new URLSearchParams(location.search).get("focus");
+    if (focusedProject) projectReturnState = { id: focusedProject, scrollY: 0, filters: filters };
+  }
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
@@ -69,6 +79,36 @@
     body.innerHTML = (selectionMode ? selectionBar : toolbar) + grid;
     wireToolbar();
     wireCards();
+    restoreProjectPosition();
+  }
+
+  function restoreProjectPosition() {
+    if (!projectReturnState) return;
+    var state = projectReturnState;
+    projectReturnState = null;
+    try { sessionStorage.removeItem(PROJECT_RETURN_KEY); } catch (error) {}
+    requestAnimationFrame(function () {
+      window.scrollTo(0, Number(state.scrollY) || 0);
+      var card = body.querySelector('.proj-card[data-id="' + String(state.id) + '"]');
+      if (card) {
+        var rect = card.getBoundingClientRect();
+        if (rect.top < 90 || rect.bottom > window.innerHeight - 30) card.scrollIntoView({ block: "center" });
+        card.classList.add("is-returned");
+        setTimeout(function () { card.classList.remove("is-returned"); }, 1200);
+      }
+      var message = null;
+      try { message = sessionStorage.getItem("walltopia.projects.flash"); sessionStorage.removeItem("walltopia.projects.flash"); } catch (error) {}
+      if (message) showProjectMessage(message);
+    });
+  }
+
+  function showProjectMessage(message) {
+    var toast = document.createElement("div");
+    toast.className = "project-return-toast";
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    requestAnimationFrame(function () { toast.classList.add("is-visible"); });
+    setTimeout(function () { toast.classList.remove("is-visible"); setTimeout(function () { toast.remove(); }, 180); }, 2200);
   }
 
   function card(p) {
@@ -92,7 +132,7 @@
       + gov
       + (!gov && tagChips ? '<div class="tags">' + tagChips + "</div>" : "")
       + (propChips ? '<div class="tags">' + propChips + "</div>" : "")
-      + '<div class="card-actions"><a class="btn small primary" href="index.html?project=' + p.id + '">Open &amp; edit</a>'
+      + '<div class="card-actions"><a class="btn small primary" data-open-project="' + p.id + '" href="index.html?project=' + p.id + '">Open &amp; edit</a>'
       + '<button class="btn small" type="button" data-export="' + p.id + '">Export PDF</button>'
       + '<a class="btn small" href="ask-engineer.html?project=' + p.id + '">Request support</a>'
       + '<button class="btn small" data-del="' + p.id + '">Delete</button></div>'
@@ -218,6 +258,11 @@
   }
 
   function wireCards() {
+    body.querySelectorAll("[data-open-project]").forEach(function (link) {
+      link.addEventListener("click", function () {
+        try { sessionStorage.setItem(PROJECT_RETURN_KEY, JSON.stringify({ id: link.getAttribute("data-open-project"), scrollY: window.scrollY, filters: filters })); } catch (error) {}
+      });
+    });
     body.querySelectorAll("[data-select-project]").forEach(function (box) {
       box.onchange = function () {
         var id = String(box.getAttribute("data-select-project"));
