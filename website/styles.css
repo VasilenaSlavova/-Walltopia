@@ -69,11 +69,22 @@ body {
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
 }
-body > main { flex: 1 0 auto; }
+/* `body` is a column flex container and every page's <main> is centred with
+   `margin-inline: auto`. An auto cross-axis margin cancels `align-items: stretch`,
+   so <main> falls back to fit-content sizing, which is at least its min-content
+   width. One wide descendant (a 620 px table, a zoomed CAD image) then makes the
+   whole page wider than the viewport, and `overflow-x: clip` on <html> hides the
+   overflow instead of letting the user reach it. Pinning the width to 100% keeps
+   <main> exactly viewport-wide and leaves overflow to the inner scroll containers. */
+body > main { flex: 1 0 auto; width: 100%; min-width: 0; }
 body > .site-footer { flex: 0 0 auto; }
 
-/* Explanatory paragraphs use justified alignment throughout the desktop site. */
+/* Explanatory paragraphs use justified alignment throughout the desktop site.
+   Below tablet width the measure is too short for it: without hyphenation, a
+   40-character line justified around a long word opens rivers of white space,
+   so narrow viewports fall back to ragged-right. */
 p { text-align: justify; }
+@media (max-width: 720px) { p { text-align: left; } }
 
 /* ---- masthead ---- */
 .masthead {
@@ -113,7 +124,10 @@ p { text-align: justify; }
 @media (min-width: 761px) and (max-width: 1350px) {
   .brand .tag { display: none; }
 }
-/* Compact header for tablets; the phone-sized web view is blocked above. */
+/* Compact header for tablets and phones: brand + account controls share row 1,
+   the navigation takes the full width of row 2. The three cells are placed
+   explicitly: with auto-placement the full-width .topnav claims row 2 and
+   pushes #auth-slot down to a row of its own. */
 @media (max-width: 960px) {
   .masthead { position: relative; }
   .masthead .wrap {
@@ -122,11 +136,12 @@ p { text-align: justify; }
     gap: 12px 10px;
     padding: 14px 18px 0;
   }
-  .brand { min-width: 0; }
+  .brand { min-width: 0; grid-column: 1; grid-row: 1; }
   .brand .logo { width: min(230px, 55vw); max-width: 100%; height: auto; }
   .brand .tag { display: none; }
   .topnav {
     grid-column: 1 / -1;
+    grid-row: 2;
     order: initial;
     width: auto;
     min-width: 0;
@@ -148,7 +163,7 @@ p { text-align: justify; }
     border-right: 1px solid var(--navy-line);
   }
   .topnav a:nth-child(even) { border-right: 0; }
-  #auth-slot { justify-self: end; }
+  #auth-slot { grid-column: 2; grid-row: 1; justify-self: end; }
 }
 
 .pill-warn {
@@ -218,12 +233,19 @@ p { text-align: justify; }
 
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .panel-head h2 { margin-bottom: 0; }
+/* The red rule before a heading is an inline marker, not a flex item: as a flex
+   item `align-items: center` parks it half-way down a heading that wraps onto a
+   second line, where it reads as a stray bullet. Inline-block + vertical-align
+   keeps it on the first line at every width. */
 .panel h2, .results h2 {
   font-family: var(--display); font-size: var(--type-label); text-transform: uppercase; letter-spacing: .7px;
-  color: var(--ink); margin: 0 0 16px; font-weight: 800; display: flex; align-items: center; gap: 9px;
+  color: var(--ink); margin: 0 0 16px; font-weight: 800; display: block;
 }
 .panel .panel-head h2 { margin: 0; }
-.panel h2::before, .results h2::before { content: ""; width: 14px; height: 3px; background: var(--accent); }
+.panel h2::before, .results h2::before {
+  content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 9px;
+  vertical-align: middle; background: var(--accent);
+}
 
 .field { margin-bottom: 18px; }
 .field > label { display: block; font-family: var(--display); font-size: var(--type-label); font-weight: 800; color: var(--ink-soft); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .45px; }
@@ -512,93 +534,6 @@ table.loads .grp-ll { color: var(--ll); }
   .results-visual-grid .schematic { width: min(100%, 560px); justify-self: center; }
 }
 
-/* 768–960 px: preserve the desktop composition, scaled down proportionally. */
-@media (min-width: 2000px) and (max-width: 1000px) {
-  body { font-size: 13px; }
-
-  .masthead { position: sticky; }
-  .masthead .wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    padding: 10px 12px;
-  }
-  .brand { flex: 0 0 auto; }
-  .brand .logo { width: auto; max-width: none; height: 20px; }
-  .topnav {
-    grid-column: auto;
-    width: auto;
-    min-width: 0;
-    margin: -10px 0;
-    display: flex;
-    align-self: stretch;
-    gap: 0;
-    overflow: visible;
-    border-top: 0;
-  }
-  .topnav a {
-    flex: 0 1 auto;
-    min-width: 0;
-    padding: 10px 5px 8px;
-    justify-content: center;
-    border-right: 0;
-    font-size: clamp(7.5px, 1.02vw, 9.5px);
-    line-height: 1.15;
-    letter-spacing: .25px;
-    text-align: center;
-    white-space: nowrap;
-  }
-  #auth-slot { flex: 0 0 auto; justify-self: auto; gap: 4px; }
-  .auth-btn { padding: 6px 7px; font-size: 8.5px; letter-spacing: .2px; }
-  .auth-name { max-width: 90px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-  .auth-avatar { width: 21px; height: 21px; font-size: 9px; }
-
-  .layout {
-    padding: 14px 12px 44px;
-    grid-template-columns: minmax(205px, 28.5%) minmax(0, 1fr);
-    gap: 12px;
-  }
-  .panel {
-    position: sticky;
-    top: 54px;
-    padding: 12px;
-  }
-  .panel h2 { margin-bottom: 10px; font-size: 10.5px; }
-  .panel .field { margin-bottom: 10px; }
-  .panel .field > label { margin-bottom: 4px; font-size: 9.5px; line-height: 1.35; }
-  .field .hint { font-size: 9px; }
-  .panel .seg button { padding: 6px 4px; font-size: 9.5px; }
-  .panel .chips { gap: 4px; }
-  .panel .chips button { min-width: 30px; padding: 5px 6px; font-size: 10px; }
-  .panel .chips.small button { padding: 5px 5px; }
-  #chips-force-input button { font-size: 8px; }
-  .panel .divider { margin: 11px -12px; }
-  .panel .caprow input { min-width: 0; padding: 6px 7px; font-size: 10.5px; }
-  .panel .caprow .unit { padding-inline: 8px; font-size: 10px; }
-  .cap-check-btn { padding: 6px 8px; font-size: 8.5px; }
-  .toggle-line { gap: 6px; font-size: 10px; line-height: 1.35; }
-
-  .results { padding: 13px 14px; }
-  .results-head { gap: 9px; }
-  .results-head .title { font-size: 19px; }
-  .results-head .sub { margin-top: 4px; font-size: 10px; }
-  .verdict { padding: 9px 10px; gap: 7px; font-size: 10.5px; }
-  .forcebar { margin-top: 13px; }
-  .forcebar .lab { margin-bottom: 5px; font-size: 8.5px; }
-  .forcebar .chips button { padding: 6px 7px; font-size: 9.5px; }
-  table.loads { min-width: 470px; }
-  table.loads th, table.loads td { padding: 7px 6px; font-size: 10.5px; }
-  table.loads thead th { font-size: 8px; letter-spacing: .2px; }
-  .colhdr small { font-size: 8px; }
-  .results-visual-grid { gap: 12px; }
-  .schematic-viewport { min-height: 240px; }
-  .legend { margin-top: 14px; }
-  .legend h3 { margin-bottom: 6px; font-size: 9.5px; }
-  .legend dl { font-size: 10.5px; }
-  .preliminary-banner { padding: 10px 12px; font-size: 10.5px; }
-}
-
 /* True tablet layout: normal scale, stacked calculator and readable controls. */
 @media (min-width: 768px) and (max-width: 960px) {
   body { width: 100%; min-height: 100vh; zoom: 1; font-size: 14px; }
@@ -647,6 +582,14 @@ table.loads .grp-ll { color: var(--ll); }
   table.loads th, table.loads td { padding: 10px 9px; }
   .forcebar .chips.small { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .forcebar .chips.small button { width: 100%; white-space: normal; }
+  /* The load table is `table-layout: fixed` at 27% per value column and the values
+     are `white-space: nowrap`; at phone widths the default 12 px cell padding plus
+     14 px figures no longer fit the column and the numbers bleed onto the borders. */
+  .single-point-table thead th,
+  .single-point-table tbody th,
+  .single-point-table td { padding-inline: 7px; }
+  .single-load-cell strong { font-size: 12.5px; gap: 4px; }
+  .single-point-table thead th { font-size: 12.5px; }
 }
 
 .legend { min-width: 0; max-width: 100%; margin-top: 24px; }
@@ -868,7 +811,23 @@ body.hide-transcripts .page-figure details { display: none; }
   .book-page { max-width: none; }
   .book-page { transform: none !important; }
 }
-@media (max-width: 720px) { .docs-nav { overflow-x: auto; } .docs-nav a { white-space: nowrap; padding: 12px; } .doc-section-head p { margin-left: 0; } .docs-tools { top: 53px; } }
+/* The masthead stops being sticky at 960 px, so a `top: 62px` sticky offset for
+   the section tabs pins them 62 px down the viewport and lets the page scroll
+   through the gap above them. */
+@media (max-width: 960px) {
+  .docs-nav { top: 0; }
+  .doc-section { scroll-margin-top: 70px; }
+}
+/* Two sections, so lay the tabs out as two equal columns instead of a
+   horizontal scroller. A scroller at this width silently clips the second tab.
+   The document toolbar is three rows tall here; sticking it would hold a quarter
+   of a phone screen permanently, so it scrolls with the page instead. */
+@media (max-width: 720px) {
+  .subbar { position: static; backdrop-filter: none; }
+  .docs-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+  .docs-nav a { justify-content: center; gap: 6px; padding: 12px 8px; font-size: 11px; line-height: 1.25; text-align: center; white-space: normal; }
+  .doc-section-head p { margin-left: 0; }
+}
 
 /* practical documentation guide */
 .practical-guide { margin-bottom: 68px; }
@@ -1092,7 +1051,26 @@ body.hide-transcripts .page-figure details { display: none; }
 .project-selector span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .proj-card h3 { padding-right: 27px; }
 
-.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+/* The toolbar is a flat row of button, search, "Tag" + select, "Sort" + select.
+   Wrapping it as a flex row splits the label from the control it names, so at
+   phone widths it becomes an explicit two-column grid: label left, control right,
+   with the button and the search field spanning both. */
+@media (max-width: 640px) {
+  .dash-toolbar:not(.bulk-selection-bar) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px 12px;
+  }
+  .dash-toolbar:not(.bulk-selection-bar) .dash-select-btn { flex: none; grid-column: 1 / -1; width: 100%; }
+  .dash-toolbar:not(.bulk-selection-bar) .dash-search { grid-column: 1 / -1; }
+  .dash-toolbar:not(.bulk-selection-bar) .lbl { grid-column: 1; }
+  .dash-toolbar:not(.bulk-selection-bar) select { grid-column: 2; width: 100%; }
+}
+
+/* `min(290px, 100%)` instead of a bare 290 px: below ~350 px of container width a
+   fixed track minimum is wider than the container and the cards overflow. */
+.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr)); gap: 16px; }
 .proj-card { background: #fff; border: 1px solid var(--line); border-top: 3px solid var(--accent); box-shadow: var(--shadow); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
 .proj-card.is-returned { box-shadow: 0 0 0 3px rgba(244,31,43,.18), var(--shadow); transition: box-shadow .5s ease; }
 .project-return-toast { position: fixed; z-index: 1200; top: 76px; left: 50%; transform: translate(-50%,-8px); padding: 11px 18px; background: var(--navy); color: #fff; box-shadow: 0 10px 28px rgba(20,24,39,.25); font: 800 12px/1.2 var(--display); opacity: 0; transition: opacity .18s ease,transform .18s ease; }
@@ -1478,13 +1456,19 @@ body.attachment-modal-open { overflow: hidden; }
   .site-footer__inner { grid-template-columns: 1fr; text-align: center; }
   .site-footer__inner nav { order: 2; }
   .site-footer__inner small { order: 3; }
-  .policy-layout { grid-template-columns: 1fr; gap: 24px; }
+  /* `1fr` is `minmax(auto, 1fr)`: the auto minimum is the item's min-content
+     width, so a wide table inside .policy-content would push the grid past the
+     viewport instead of scrolling inside .policy-table-wrap. */
+  .policy-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .policy-nav { position: static; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @media (max-width: 520px) {
   .policy-page { padding: 30px 15px 52px; }
   .policy-nav { grid-template-columns: 1fr; }
   .site-footer__inner { padding-inline: 16px; }
+  /* 30 px of gutter on each side costs a fifth of a 320 px screen. */
+  .dash { padding: 20px 14px 48px; }
+  .dash-head-actions, .dash-head-actions .btn { width: 100%; }
 }
 
 @media (min-width: 768px) and (max-width: 960px) {
