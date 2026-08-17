@@ -365,6 +365,21 @@
     return governing;
   }
 
+  function totalColumnHorizontalReaction() {
+    var row = selectedScenarioRow(), total = 0;
+    if (row) {
+      for (var level = 1; level <= columnLevelCount(); level++) {
+        total += (factor(pick(row, "LX" + level + "DL"), "DL") || 0)
+          + (factor(pick(row, "LX" + level + "LL"), "LL") || 0);
+      }
+    }
+    return {
+      value: Math.abs(total),
+      signedValue: total,
+      scenario: row ? (S.type === "wall" ? "Selected force level Z" + row.lvl : "Boulder load case") : null
+    };
+  }
+
   function columnPointTableHtml(values) {
     var rows = [], wall = S.type === "wall" ? DATA.walls[wallKey(S.height, S.levels)] : null;
     for (var level = 1; level <= columnLevelCount(); level++) {
@@ -388,14 +403,14 @@
     var details = slab === "hollow" ? ["CF-03"] : slab === "solid" ? ["CF-01","CF-02"] : [];
     var detailNames = { "CF-01": "Base connection detail 01", "CF-02": "Base connection detail 02", "CF-03": "Base connection detail 03" };
     var support = singlePointSelection.support;
-    var supports = S.type === "boulder" ? ["concrete-wall","masonry-wall"] : ["concrete-wall"];
+    var supports = S.type === "boulder" ? ["concrete-wall","steel-beam","masonry-wall"] : ["concrete-wall","steel-beam"];
     if (supports.indexOf(support) < 0) {
       support = null;
       singlePointSelection.support = null;
       singlePointSelection.attachmentDetail = null;
     }
-    var supportLabels = { "concrete-wall": "Solid concrete wall", "masonry-wall": "Masonry / brick wall" };
-    var supportDetails = support === "concrete-wall" ? ["CW-01","CW-03"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
+    var supportLabels = { "concrete-wall": "Solid concrete wall", "steel-beam": "Steel beam", "masonry-wall": "Masonry / brick wall" };
+    var supportDetails = support === "concrete-wall" ? ["CW-01","CW-03"] : support === "steel-beam" ? ["SB-01","SB-02","SB-03"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
     return '<section class="single-conditions"><div class="single-section-label single-section-label-with-link">1 · Select the supporting slab<a href="' + attachmentDocumentationHref() + '">View full documentation</a></div>'
       + '<div class="seg single-slab-options"><button type="button" data-single-slab="hollow" aria-pressed="' + (slab === "hollow") + '">Hollow panel slab</button><button type="button" data-single-slab="solid" aria-pressed="' + (slab === "solid") + '">Solid concrete slab</button></div>'
       + (details.length ? '<div class="attachment-detail-list single-detail-list">' + details.map(function (code) {
@@ -413,26 +428,26 @@
   }
 
   var singleDetailMeta = {
-    "CF-01": { title: "Base connection detail 01", file: "concrete-floor-05.png" },
-    "CF-02": { title: "Base connection detail 02", file: "concrete-floor-04.png" },
-    "CF-03": { title: "Base connection detail 03", file: "concrete-floor-03.png" },
-    "CW-01": { title: "Solid concrete wall / column · Detail 01", file: "concrete-wall-03.png" },
-    "CW-02": { title: "Solid concrete wall / column · Detail 02", file: "concrete-wall-02.png" },
-    "CW-03": { title: "Solid concrete wall / column · Detail 03", file: "concrete-wall-01.png" },
-    "SC-01": { title: "Steel column · Detail 01", file: "steel-column-04.png" },
-    "SC-02": { title: "Steel column · Detail 02", file: "steel-column-03.png" },
-    "SC-03": { title: "Steel column · Detail 03", file: "steel-column-02.png" },
-    "SC-04": { title: "Steel column · Detail 04", file: "steel-column-01.png" },
+    "CF-01": { title: "Base connection detail 01", fileEU: "concrete-floor-01-metric.png", fileUSA: "concrete-floor-01-imperial.png" },
+    "CF-02": { title: "Base connection detail 02", fileEU: "concrete-floor-02-metric.png", fileUSA: "concrete-floor-02-imperial.png" },
+    "CF-03": { title: "Base connection detail 03", fileEU: "concrete-floor-03-metric.png", fileUSA: "concrete-floor-03-imperial.png" },
+    "CW-01": { title: "Solid concrete wall · Detail 01", fileEU: "concrete-wall-01-metric.png", fileUSA: "concrete-wall-01-imperial.png" },
+    "CW-02": { title: "Solid concrete wall · Detail 02", fileEU: "concrete-wall-02-metric.png", fileUSA: "concrete-wall-02-imperial.png" },
+    "CW-03": { title: "Solid concrete wall · Detail 03", fileEU: "concrete-wall-03-metric.png", fileUSA: "concrete-wall-03-imperial.png" },
+    "SC-01": { title: "Steel column · Detail 01", fileEU: "steel-column-01-metric.png", fileUSA: "steel-column-01-imperial.png" },
+    "SC-02": { title: "Steel column · Detail 02", fileEU: "steel-column-02-metric.png", fileUSA: "steel-column-02-imperial.png" },
+    "SC-03": { title: "Steel column · Detail 03", fileEU: "steel-column-03-metric.png", fileUSA: "steel-column-03-imperial.png" },
+    "SC-04": { title: "Steel column · Detail 04", fileEU: "steel-column-04-metric.png", fileUSA: "steel-column-04-imperial.png" },
     "SB-01": { title: "Steel beam · Detail 01", fileEU: "steel-beam-01-metric.png", fileUSA: "steel-beam-01-imperial.png" },
     "SB-02": { title: "Steel beam · Detail 02", fileEU: "steel-beam-02-metric.png", fileUSA: "steel-beam-02-imperial.png" },
     "SB-03": { title: "Steel beam · Detail 03", fileEU: "steel-beam-03-metric.png", fileUSA: "steel-beam-03-imperial.png" },
-    "MW-01": { title: "Masonry / brick wall · Detail 01", file: "masonry-wall-02.png" },
-    "MW-02": { title: "Masonry / brick wall · Detail 02", file: "masonry-wall-01.png" }
+    "MW-01": { title: "Masonry / brick wall · Detail 01", fileEU: "masonry-wall-01-metric.png", fileUSA: "masonry-wall-01-imperial.png" },
+    "MW-02": { title: "Masonry / brick wall · Detail 02", fileEU: "masonry-wall-02-metric.png", fileUSA: "masonry-wall-02-imperial.png" }
   };
   function singleDetailImagePath(code) {
     var meta = singleDetailMeta[code];
     var file = S.units === "USA" && meta.fileUSA ? meta.fileUSA : (meta.fileEU || meta.file);
-    return "manuals/attachment/details/" + file + "?v=wt4";
+    return "manuals/attachment/details/" + file + "?v=wt5";
   }
   function closeSingleDetailPreview() {
     var preview = document.getElementById("single-detail-preview");
@@ -500,18 +515,18 @@
     return '<section class="single-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div>'
       + '<div class="single-capacity-fields">'
       + '<label><span>Allowable vertical reaction at base point (X0)</span><div class="caprow"><input id="base-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (S.baseCapacity===null?'':S.baseCapacity) + '" placeholder="Base load capacity"><div class="unit">' + U().force + '</div></div></label>'
-      + '<label><span>Allowable total horizontal load on one column</span><div class="caprow"><input id="side-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (horizontalChecked?S.sideCapacity:'') + '" placeholder="Column load capacity"><div class="unit">' + U().force + '</div></div></label>'
+      + '<label><span>Allowable total horizontal load</span><div class="caprow"><input id="side-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (horizontalChecked?S.sideCapacity:'') + '" placeholder="Side load capacity"><div class="unit">' + U().force + '</div></div></label>'
       + '<button class="cap-check-btn" id="single-capacity-submit" type="button">Check capacity</button></div>' + statuses + '</section>';
   }
 
   function columnPointConditionsHtml() {
     var support = columnPointSelection.support;
-    var supports = S.type === "boulder" ? ["concrete-wall","steel-column","steel-beam","masonry-wall"] : ["concrete-wall","steel-column","steel-beam"];
+    var supports = S.type === "boulder" ? ["concrete-wall","steel-column","masonry-wall"] : ["concrete-wall","steel-column"];
     if (supports.indexOf(support) < 0) { support=null; columnPointSelection.support=null; columnPointSelection.attachmentDetail=null; }
     var labels = { "concrete-wall":"Solid concrete column", "steel-column":"Steel column", "steel-beam":"Steel beam", "masonry-wall":"Masonry / brick wall" };
-    var details = support === "concrete-wall" ? ["CW-02"] : support === "steel-column" ? ["SC-01","SC-02","SC-03","SC-04"] : support === "steel-beam" ? ["SB-01","SB-02","SB-03"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
+    var details = support === "concrete-wall" ? ["CW-02"] : support === "steel-column" ? ["SC-01","SC-02","SC-03","SC-04"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
     if (details.indexOf(columnPointSelection.attachmentDetail) < 0) columnPointSelection.attachmentDetail = null;
-    return '<section class="single-conditions column-conditions"><div class="single-section-label single-section-label-with-link">Choose attachment method<a href="' + attachmentDocumentationHref() + '">View full documentation</a></div><div class="seg single-attachment-method-options' + (supports.length === 4 ? ' is-two-row' : '') + '">'
+    return '<section class="single-conditions column-conditions"><div class="single-section-label single-section-label-with-link">Choose attachment method<a href="' + attachmentDocumentationHref() + '">View full documentation</a></div><div class="seg single-attachment-method-options' + (supports.length > 2 ? ' is-two-row' : '') + '">'
       + supports.map(function (item) { return '<button type="button" data-column-support="' + item + '" aria-pressed="' + (support === item) + '">' + labels[item] + '</button>'; }).join("") + '</div>'
       + (details.length ? '<div class="attachment-detail-list single-detail-list">' + details.map(function (code) {
           var selected=columnPointSelection.attachmentDetail===code;
@@ -558,16 +573,12 @@
   }
 
   function columnCapacityHtml() {
-    var fields="", statuses="", allChecked=true, allOk=true;
-    for (var level=1;level<=columnLevelCount();level++) {
-      var key="LX"+level, capacity=S.columnCapacities[key], governing=governingLX(level), checked=capacity!==undefined&&capacity!==null&&!isNaN(capacity), ok=checked&&governing.value<=capacity;
-      if (!checked) allChecked=false;
-      if (checked&&!ok) allOk=false;
-      fields += '<label><span>Allowable horizontal load at ' + key + '</span><div class="caprow"><input data-column-capacity="' + key + '" type="number" inputmode="decimal" min="0" step="any" value="' + (checked?capacity:'') + '" placeholder="' + key + ' capacity"><div class="unit">' + U().force + '</div></div></label>';
-      if (checked) statuses += '<div class="column-capacity-point"><strong>' + key + '</strong><span>' + fmtForce(governing.value) + ' ' + U().force + ' required vs ' + fmtForce(capacity) + ' ' + U().force + ' capacity</span><em class="' + (ok?'is-ok':'is-bad') + '">' + (ok?'Applicable':'Exceeds capacity') + '</em></div>';
-    }
-    var summary=allChecked?'<div class="single-capacity-status ' + (allOk?'is-ok':'is-bad') + '"><strong>' + (allOk?'Applicable':'Exceeds capacity') + '</strong><span>Capacity checked independently at each building-column point.</span></div>':'';
-    return '<section class="single-capacity column-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div><div class="column-capacity-controls"><div class="column-capacity-fields">' + fields + '</div><button class="cap-check-btn column-capacity-submit" id="column-capacity-submit" type="button">Check capacity</button></div>' + summary + (statuses?'<div class="column-capacity-statuses">'+statuses+'</div>':'') + '</section>';
+    var capacity = S.columnCapacities.total;
+    var required = totalColumnHorizontalReaction();
+    var checked = capacity !== undefined && capacity !== null && !isNaN(capacity);
+    var ok = checked && required.value <= Number(capacity);
+    var status = checked ? '<div class="single-capacity-status ' + (ok?'is-ok':'is-bad') + '"><strong>' + (ok?'Applicable':'Exceeds capacity') + '</strong><span>Required horizontal load: ' + fmtForce(required.value) + ' ' + U().force + ' · Σ(LXi DL + LXi LL)' + (required.scenario?' · '+required.scenario:'') + '</span></div>' : '';
+    return '<section class="single-capacity column-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div><div class="column-capacity-controls"><div class="column-capacity-fields"><label><span>Allowable horizontal load</span><div class="caprow"><input id="column-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (checked?capacity:'') + '" placeholder="Side load capacity"><div class="unit">' + U().force + '</div></div></label></div><button class="cap-check-btn column-capacity-submit" id="column-capacity-submit" type="button">Check capacity</button></div>' + status + '</section>';
   }
 
   function refreshSingleCapacity() {
@@ -665,15 +676,10 @@
     wireSingleCapacityControls(document.querySelector(".single-point-section:not(.column-point-section) .single-capacity"));
     var columnSubmit=document.getElementById("column-capacity-submit");
     if (columnSubmit) columnSubmit.addEventListener("click",function () {
-      var next={},valid=true;
-      document.querySelectorAll("[data-column-capacity]").forEach(function (input) {
-        var raw=input.value.trim(),key=input.getAttribute("data-column-capacity");
-        if (raw==="") return;
-        if (!isFinite(Number(raw))||Number(raw)<0) { valid=false; return; }
-        next[key]=Number(raw);
-      });
-      if (!valid) return;
-      S.columnCapacities=next;
+      var input=document.getElementById("column-capacity-input");
+      var raw=input?input.value.trim():"";
+      if (raw==="" || !isFinite(Number(raw)) || Number(raw)<0) return;
+      S.columnCapacities={ total:Number(raw) };
       renderResults();
     });
   }
@@ -1089,7 +1095,7 @@
       + '<ol>'
       + '<li>Coefficient for dead load = <b>' + u.dl + '</b>.</li>'
       + '<li>Coefficient for live load = <b>' + u.ll + '</b>.</li>'
-      + '<li>All loads are characteristic values and are expressed in <b>' + u.force + '</b>. Refer to the positive directions of the coordinate system when interpreting their signs.</li>'
+      + '<li>All loads are ' + (S.factored ? 'factored values' : 'characteristic values') + ' and are expressed in <b>' + u.force + '</b>. Refer to the positive directions of the coordinate system when interpreting their signs.</li>'
       + '<li>The application manual is an inseparable part of the load tables. For additional information, consult Walltopia.</li>'
       + '<li><span class="code">Used code: ' + code + '.</span></li>'
       + '</ol></div>';
@@ -1145,13 +1151,10 @@
       hasCapacityCheck=true;
       if (totalHorizontalReaction().value>Number(S.sideCapacity)) allCapacityChecksPass=false;
     }
-    for (var checkedLevel = 1; checkedLevel <= columnLevelCount(); checkedLevel++) {
-      var checkedKey = "LX" + checkedLevel;
-      var checkedCapacity = S.columnCapacities[checkedKey];
-      if (checkedCapacity !== undefined && checkedCapacity !== null && !isNaN(checkedCapacity)) {
-        hasCapacityCheck = true;
-        if (governingLX(checkedLevel).value > Number(checkedCapacity)) allCapacityChecksPass = false;
-      }
+    var columnCapacity = S.columnCapacities.total;
+    if (columnCapacity !== undefined && columnCapacity !== null && !isNaN(columnCapacity)) {
+      hasCapacityCheck = true;
+      if (totalColumnHorizontalReaction().value > Number(columnCapacity)) allCapacityChecksPass = false;
     }
     var verdict = !hasCapacityCheck ? "neutral" : (allCapacityChecksPass ? "ok" : "bad");
     var title = (S.type === "wall" ? "Climbing wall " : "Boulder wall ") + fmtLen(S.height);

@@ -470,6 +470,16 @@ p { text-align: justify; }
   .column-point-body > #attachment-config-root .attachment-acs { height: auto; }
   .column-point-body > #attachment-config-root .attachment-viewport { position: relative; inset: auto; aspect-ratio: 900 / 550; }
 }
+@media (max-width: 600px) {
+  .result-solution-tabs button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+  }
+  .result-solution-tabs button span { margin: 0; }
+}
 .results-verdict-row { display: flex; justify-content: flex-start; margin: 12px 0 8px; }
 .results-verdict-row:empty { display: none; }
 
@@ -1315,6 +1325,7 @@ body.hide-transcripts .page-figure details { display: none; }
 .attachment-detail-row { min-width: 0; display: grid; grid-template-columns: minmax(0,1fr) auto; border: 1px solid var(--line-strong); background: #fff; }
 .attachment-detail-row:hover, .attachment-detail-row:focus-within { border-color: var(--accent); }
 .attachment-detail-row.is-selected { border: 2px solid var(--accent); }
+.attachment-detail-row.is-selected .attachment-detail-choice span { color: var(--accent); }
 .attachment-detail-choice { min-width: 0; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 9px; border: 0; background: transparent; padding: 9px 10px; text-align: left; cursor: pointer; color: var(--ink); }
 .attachment-detail-choice b { color: var(--accent); font: 700 11px/1 var(--mono); white-space: nowrap; }
 .attachment-detail-choice span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); font-size: 11.5px; }
@@ -1343,6 +1354,8 @@ body.hide-transcripts .page-figure details { display: none; }
 .attachment-acs .acs-full-roof, .attachment-acs .acs-full-ground { fill: none; stroke: var(--navy); stroke-width: 2.5; }
 .attachment-acs .acs-full-column { fill: #fff; stroke: var(--navy); stroke-width: 2; }
 .attachment-acs .acs-full-beam { stroke: #2463eb; stroke-width: 4; }
+.attachment-acs .acs-column-point { fill: #fff; stroke: var(--accent); stroke-width: 4; pointer-events: none; }
+.attachment-acs .acs-column-point-label { fill: #64748b; font-family: var(--sans); font-size: 13px; font-weight: 800; pointer-events: none; }
 .attachment-acs .acs-load-arrow { fill: none; stroke-width: 2.5; stroke-dasharray: 6 5; }
 .attachment-acs .acs-load-arrow.is-ll { stroke: var(--accent); }
 .attachment-acs .acs-load-arrow.is-dl { stroke: #111; }
