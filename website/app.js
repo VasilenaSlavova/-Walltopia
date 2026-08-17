@@ -18,6 +18,8 @@
   var columnPointSelection = { support: null, attachmentDetail: null };
   var CALCULATOR_DRAFT_KEY = "walltopia.calculator.draft.v1";
   var schematicView = { scale: 1, panX: 0, panY: 0 };
+  var mobileResultsWasReady = false;
+  var mobileResultsAutoScrollEnabled = false;
 
   // ---- derive option sets ----
   // wall height -> sorted list of available schemes (levels)
@@ -79,7 +81,7 @@
       var b = document.createElement("button");
       b.type = "button"; b.textContent = it.label;
       b.setAttribute("aria-pressed", String(it.value === cur));
-      b.onclick = function () { onPick(it.value); };
+      b.onclick = function () { mobileResultsAutoScrollEnabled = true; onPick(it.value); };
       el.appendChild(b);
     });
   }
@@ -90,7 +92,7 @@
       var b = document.createElement("button");
       b.type = "button"; b.textContent = labelFn ? labelFn(v) : v;
       b.setAttribute("aria-pressed", String(v === cur));
-      b.onclick = function () { onPick(v); };
+      b.onclick = function () { mobileResultsAutoScrollEnabled = true; onPick(v); };
       el.appendChild(b);
     });
   }
@@ -697,6 +699,8 @@
     var root = document.getElementById("result-root");
     var ready = selectedInputs.units && selectedInputs.type && selectedInputs.height && selectedInputs.span && selectedInputs.overhang
       && (S.type === "boulder" || (selectedInputs.levels && selectedInputs.force));
+    var shouldAutoScroll = ready && !mobileResultsWasReady && mobileResultsAutoScrollEnabled && window.innerWidth <= 960;
+    mobileResultsWasReady = ready;
     if (!ready) {
       root.innerHTML = '<div class="empty">Select the calculator inputs to view the results.</div>';
       window.WTCalculatorPayload = null;
@@ -732,6 +736,15 @@
     window.WTCalculatorPayload = calculatorPayload;
     window.dispatchEvent(new CustomEvent("wtcalculatorchange", { detail: calculatorPayload }));
     try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
+    if (shouldAutoScroll) {
+      mobileResultsAutoScrollEnabled = false;
+      window.requestAnimationFrame(function () {
+        var header = document.querySelector(".masthead");
+        var headerOffset = header ? header.getBoundingClientRect().height : 0;
+        var targetTop = root.getBoundingClientRect().top + window.scrollY - headerOffset - 12;
+        window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+      });
+    }
   }
 
   function verdictHtml() {
