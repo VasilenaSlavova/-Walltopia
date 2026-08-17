@@ -251,6 +251,9 @@ p { text-align: justify; }
 .seg button:hover { color: var(--ink); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 
+#seg-units, #seg-type { padding: 0; gap: 0; }
+#seg-units button + button, #seg-type button + button { border-left: 1px solid var(--line-strong); }
+
 /* chips */
 .chips { display: flex; flex-wrap: wrap; gap: 7px; }
 .chips button {
@@ -1355,6 +1358,7 @@ body.hide-transcripts .page-figure details { display: none; }
 .attachment-acs .acs-full-column { fill: #fff; stroke: var(--navy); stroke-width: 2; }
 .attachment-acs .acs-full-beam { stroke: #2463eb; stroke-width: 4; }
 .attachment-acs .acs-column-point { fill: #fff; stroke: var(--accent); stroke-width: 4; pointer-events: none; }
+.attachment-acs .acs-column-point.attachment-point { pointer-events: all; cursor: pointer; }
 .attachment-acs .acs-column-point-label { fill: #64748b; font-family: var(--sans); font-size: 13px; font-weight: 800; pointer-events: none; }
 .attachment-acs .acs-load-arrow { fill: none; stroke-width: 2.5; stroke-dasharray: 6 5; }
 .attachment-acs .acs-load-arrow.is-ll { stroke: var(--accent); }

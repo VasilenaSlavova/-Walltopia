@@ -16,6 +16,8 @@
   if (window.WTCalculatorPayload) {
     state.input = window.WTCalculatorPayload.input || state.input;
     state.type = state.input.type || state.type;
+    state.support = state.input.columnSupportingStructure || state.support;
+    state.detail = state.input.columnAttachmentDetail || null;
     state.levelForces = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.levelForces) || [];
     state.deadLevelForces = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.levelDeadForces) || [];
     state.forceUnit = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.unit) || state.forceUnit;
@@ -156,7 +158,9 @@
         if (!visualOnly && hasAttachmentDetail) circles += '<circle class="attachment-point" data-point="level" data-level="' + (i+1) + '" cx="' + cx + '" cy="' + cy + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment level ' + (i+1) + ' detail"/>';
       });
       if (visualOnly) {
-        pointMarkers += '<circle class="acs-column-point" cx="' + mid + '" cy="' + y + '" r="8"><title>Attachment point X' + (i+1) + '</title></circle>';
+        pointMarkers += '<circle class="acs-column-point' + (hasAttachmentDetail ? ' attachment-point' : '') + '"'
+          + (hasAttachmentDetail ? ' data-point="level" data-level="' + (i+1) + '" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment point X' + (i+1) + ' detail"' : '')
+          + ' cx="' + mid + '" cy="' + y + '" r="8"><title>Attachment point X' + (i+1) + (hasAttachmentDetail ? ' · ' + selectedDetail().id : '') + '</title></circle>';
         var pointLabelY = y - (i === levelYs.length - 1 ? 22 : 12);
         pointMarkers += '<text class="acs-column-point-label" x="' + (mid+18) + '" y="' + pointLabelY + '">X' + (i+1) + '</text>';
       }
@@ -413,6 +417,8 @@
     if (!e.detail || !e.detail.input) return;
     state.input = e.detail.input;
     state.type = state.input.type || "wall";
+    state.support = state.input.columnSupportingStructure || state.support;
+    state.detail = state.input.columnAttachmentDetail || null;
     state.levelForces = (e.detail.snapshot && e.detail.snapshot.levelForces) || [];
     state.deadLevelForces = (e.detail.snapshot && e.detail.snapshot.levelDeadForces) || [];
     state.forceUnit = (e.detail.snapshot && e.detail.snapshot.unit) || state.forceUnit;
@@ -422,6 +428,8 @@
     if (payload && payload.input) {
       state.input = payload.input;
       state.type = state.input.type || "wall";
+      state.support = state.input.columnSupportingStructure || state.support;
+      state.detail = state.input.columnAttachmentDetail || null;
       state.levelForces = (payload.snapshot && payload.snapshot.levelForces) || [];
       state.deadLevelForces = (payload.snapshot && payload.snapshot.levelDeadForces) || [];
       state.forceUnit = (payload.snapshot && payload.snapshot.unit) || state.forceUnit;
