@@ -1,0 +1,19 @@
+# pdfLaTeX, НЕ XeLaTeX — вж. REQUIREMENTS.md Б.0 (T2A + tempora).
+$pdf_mode = 1;
+$bibtex_use = 2;
+$out_dir = 'build';
+$clean_ext = 'bbl nav out snm synctex.gz run.xml';
+
+# BibTeX се изпълнява ВЪТРЕ в $out_dir, затова не вижда references.bib в папката
+# на източника и го търси в дървото на дистрибуцията. На машина, където там има
+# файл със същото име (MiKTeX носи такъв в пакета feupphdteses), bibtex тихо
+# намира ЧУЖДИЯ файл, не съобщава грешка и произвежда празен списък с литература.
+# Добавянето на папката на източника в BIBINPUTS решава това, без да зависи от
+# това какви пакети са инсталирани.
+use Cwd 'abs_path';
+my $srcdir = abs_path('.');
+my $sep = ($^O eq 'MSWin32') ? ';' : ':';
+$ENV{'BIBINPUTS'} = $srcdir . $sep . ($ENV{'BIBINPUTS'} // '') . $sep;
+# MiKTeX не чете BIBINPUTS, затова папката на източника се подава и изрично.
+# Флагът се пренебрегва мълчаливо от TeX Live, където BIBINPUTS е достатъчен.
+$bibtex = "bibtex -include-directory=\"$srcdir\" %O %B";

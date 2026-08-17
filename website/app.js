@@ -377,6 +377,10 @@
       + '</tbody></table></div>';
   }
 
+  function attachmentDocumentationHref() {
+    return "technical-documentation.html?units=" + (S.units === "USA" ? "USA" : "EU") + "#attachment-details";
+  }
+
   function singlePointConditionsHtml() {
     var slab = singlePointSelection.slab;
     var details = slab === "hollow" ? ["CF-03"] : slab === "solid" ? ["CF-01","CF-02"] : [];
@@ -390,7 +394,7 @@
     }
     var supportLabels = { "concrete-wall": "Solid concrete wall", "masonry-wall": "Masonry / brick wall" };
     var supportDetails = support === "concrete-wall" ? ["CW-01","CW-03"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
-    return '<section class="single-conditions"><div class="single-section-label">1 · Select the supporting slab</div>'
+    return '<section class="single-conditions"><div class="single-section-label single-section-label-with-link">1 · Select the supporting slab<a href="' + attachmentDocumentationHref() + '">View full documentation</a></div>'
       + '<div class="seg single-slab-options"><button type="button" data-single-slab="hollow" aria-pressed="' + (slab === "hollow") + '">Hollow panel slab</button><button type="button" data-single-slab="solid" aria-pressed="' + (slab === "solid") + '">Solid concrete slab</button></div>'
       + (details.length ? '<div class="attachment-detail-list single-detail-list">' + details.map(function (code) {
           var selected = singlePointSelection.detail === code;
@@ -417,10 +421,17 @@
     "SC-02": { title: "Steel column · Detail 02", file: "steel-column-03.png" },
     "SC-03": { title: "Steel column · Detail 03", file: "steel-column-02.png" },
     "SC-04": { title: "Steel column · Detail 04", file: "steel-column-01.png" },
+    "SB-01": { title: "Steel beam · Detail 01", fileEU: "steel-beam-01-metric.png", fileUSA: "steel-beam-01-imperial.png" },
+    "SB-02": { title: "Steel beam · Detail 02", fileEU: "steel-beam-02-metric.png", fileUSA: "steel-beam-02-imperial.png" },
+    "SB-03": { title: "Steel beam · Detail 03", fileEU: "steel-beam-03-metric.png", fileUSA: "steel-beam-03-imperial.png" },
     "MW-01": { title: "Masonry / brick wall · Detail 01", file: "masonry-wall-02.png" },
     "MW-02": { title: "Masonry / brick wall · Detail 02", file: "masonry-wall-01.png" }
   };
-  function singleDetailImagePath(code) { return "manuals/attachment/details/" + singleDetailMeta[code].file; }
+  function singleDetailImagePath(code) {
+    var meta = singleDetailMeta[code];
+    var file = S.units === "USA" && meta.fileUSA ? meta.fileUSA : (meta.fileEU || meta.file);
+    return "manuals/attachment/details/" + file + "?v=wt4";
+  }
   function closeSingleDetailPreview() {
     var preview = document.getElementById("single-detail-preview");
     if (preview) preview.hidden = true;
@@ -442,8 +453,8 @@
     var rect = trigger.getBoundingClientRect();
     if (trigger.closest(".column-conditions")) {
       var resultRect = document.getElementById("result-root").getBoundingClientRect();
-      var containedLeft = Math.min(rect.left, resultRect.right - preview.offsetWidth - 12);
-      preview.style.left = Math.max(resultRect.left + 12, containedLeft) + "px";
+      var centeredLeft = resultRect.left + (resultRect.width - preview.offsetWidth) / 2;
+      preview.style.left = Math.max(12, Math.min(centeredLeft, window.innerWidth - preview.offsetWidth - 12)) + "px";
       var below = rect.bottom + 8;
       preview.style.top = Math.max(12, Math.min(below, window.innerHeight - preview.offsetHeight - 12)) + "px";
       return;
@@ -493,12 +504,12 @@
 
   function columnPointConditionsHtml() {
     var support = columnPointSelection.support;
-    var supports = S.type === "boulder" ? ["concrete-wall","steel-column","masonry-wall"] : ["concrete-wall","steel-column"];
+    var supports = S.type === "boulder" ? ["concrete-wall","steel-column","steel-beam","masonry-wall"] : ["concrete-wall","steel-column","steel-beam"];
     if (supports.indexOf(support) < 0) { support=null; columnPointSelection.support=null; columnPointSelection.attachmentDetail=null; }
-    var labels = { "concrete-wall":"Solid concrete column", "steel-column":"Steel column", "masonry-wall":"Masonry / brick wall" };
-    var details = support === "concrete-wall" ? ["CW-02"] : support === "steel-column" ? ["SC-01","SC-02","SC-03","SC-04"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
+    var labels = { "concrete-wall":"Solid concrete column", "steel-column":"Steel column", "steel-beam":"Steel beam", "masonry-wall":"Masonry / brick wall" };
+    var details = support === "concrete-wall" ? ["CW-02"] : support === "steel-column" ? ["SC-01","SC-02","SC-03","SC-04"] : support === "steel-beam" ? ["SB-01","SB-02","SB-03"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
     if (details.indexOf(columnPointSelection.attachmentDetail) < 0) columnPointSelection.attachmentDetail = null;
-    return '<section class="single-conditions column-conditions"><div class="single-section-label">Choose attachment method</div><div class="seg single-attachment-method-options">'
+    return '<section class="single-conditions column-conditions"><div class="single-section-label single-section-label-with-link">Choose attachment method<a href="' + attachmentDocumentationHref() + '">View full documentation</a></div><div class="seg single-attachment-method-options' + (supports.length === 4 ? ' is-two-row' : '') + '">'
       + supports.map(function (item) { return '<button type="button" data-column-support="' + item + '" aria-pressed="' + (support === item) + '">' + labels[item] + '</button>'; }).join("") + '</div>'
       + (details.length ? '<div class="attachment-detail-list single-detail-list">' + details.map(function (code) {
           var selected=columnPointSelection.attachmentDetail===code;
@@ -509,7 +520,7 @@
 
   function columnSchematicHtml() {
     var values = columnPointValues(), count = columnLevelCount();
-    var methodLabels = { "concrete-wall":"Solid concrete wall / column", "steel-column":"Steel column", "masonry-wall":"Masonry / brick wall" };
+    var methodLabels = { "concrete-wall":"Solid concrete wall / column", "steel-column":"Steel column", "steel-beam":"Steel beam", "masonry-wall":"Masonry / brick wall" };
     var method = columnPointSelection.support ? methodLabels[columnPointSelection.support] : "Select an attachment method";
     var detail = columnPointSelection.attachmentDetail ? " · " + columnPointSelection.attachmentDetail : "";
     var rows = "", top = 54, bottom = 342, columnX = 250;

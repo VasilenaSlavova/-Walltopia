@@ -34,11 +34,14 @@
     { id: "SC-02", support: "steel-column", title: "Steel column · Detail 02", file: "steel-column-03.png", point: "level" },
     { id: "SC-03", support: "steel-column", title: "Steel column · Detail 03", file: "steel-column-02.png", point: "level" },
     { id: "SC-04", support: "steel-column", title: "Steel column · Detail 04", file: "steel-column-01.png", point: "level" },
+    { id: "SB-01", support: "steel-beam", title: "Steel beam · Detail 01", file: "steel-beam-01-metric.png", fileUSA: "steel-beam-01-imperial.png", point: "level" },
+    { id: "SB-02", support: "steel-beam", title: "Steel beam · Detail 02", file: "steel-beam-02-metric.png", fileUSA: "steel-beam-02-imperial.png", point: "level" },
+    { id: "SB-03", support: "steel-beam", title: "Steel beam · Detail 03", file: "steel-beam-03-metric.png", fileUSA: "steel-beam-03-imperial.png", point: "level" },
     { id: "MW-01", support: "masonry-wall", title: "Masonry wall · Detail 01", file: "masonry-wall-02.png", point: "level", boulderOnly: true },
     { id: "MW-02", support: "masonry-wall", title: "Masonry wall · Detail 02", file: "masonry-wall-01.png", point: "level", boulderOnly: true }
   ];
   var slabLabels = { "hollow-panel-slab": "Hollow panel slab", "solid-concrete-slab": "Solid concrete slab" };
-  var supportLabels = { "concrete-wall": "Solid concrete wall / column", "steel-column": "Steel column", "masonry-wall": "Masonry / brick wall" };
+  var supportLabels = { "concrete-wall": "Solid concrete wall / column", "steel-column": "Steel column", "steel-beam": "Steel beam", "masonry-wall": "Masonry / brick wall" };
   var standardZ = {
     "8": {"1":[7.5], "2":[4.5,7.5]}, "9": {"2":[4.5,8.5]},
     "10": {"2":[5,9.5]}, "11": {"2":[5.5,10.5]},
@@ -47,9 +50,14 @@
   };
 
   function detailImage(d, cls) {
-    return '<img class="' + (cls || "") + '" src="' + DETAIL_PATH + d.file + '" alt="' + d.title + '" loading="lazy">';
+    var file = state.input && state.input.units === "USA" && d.fileUSA ? d.fileUSA : d.file;
+    return '<img class="' + (cls || "") + '" src="' + DETAIL_PATH + file + '" alt="' + d.title + '" loading="lazy">';
   }
-  function allowedSupports() { return state.type === "boulder" ? ["concrete-wall","steel-column","masonry-wall"] : ["concrete-wall","steel-column"]; }
+  function attachmentDocumentationHref() {
+    var units = state.input && state.input.units === "USA" ? "USA" : "EU";
+    return "technical-documentation.html?units=" + units + "#attachment-details";
+  }
+  function allowedSupports() { return state.type === "boulder" ? ["concrete-wall","steel-column","steel-beam","masonry-wall"] : ["concrete-wall","steel-column","steel-beam"]; }
   function supportDetails() { return details.filter(function (d) { return d.support === state.support && (!d.boulderOnly || state.type === "boulder"); }); }
   function floorDetails() { return details.filter(function (d) { return d.support === "concrete-floor" && d.slab === state.slab; }); }
   function baseDetail() { return floorDetails().find(function (d) { return d.id === state.baseDetailId; }) || floorDetails()[0]; }
@@ -92,14 +100,14 @@
     var levels = state.type === "boulder" ? 1 : Math.max(1, Number(state.input.levels) || 1);
     root.innerHTML = '<section class="attachment-config">'
       + '<div class="attachment-config-head"><div><span>Attachment configuration</span><h2>Select the supporting slab and attachment method</h2><p>These selections filter the applicable standard details. They do not change the preliminary load values.</p></div>'
-      + '<a href="technical-documentation.html#attachment-details">View full documentation</a></div>'
-      + '<div class="attachment-support attachment-option-row"><span class="attachment-label">1 · Supporting slab</span><div class="seg" id="attachment-slab-buttons">'
+      + '</div>'
+      + '<div class="attachment-support attachment-option-row"><div class="attachment-option-label-row"><span class="attachment-label">1 · Select the supporting slab</span><a href="' + attachmentDocumentationHref() + '">View full documentation</a></div><div class="seg" id="attachment-slab-buttons">'
       + Object.keys(slabLabels).map(function (s) { return '<button type="button" data-slab="' + s + '" aria-pressed="' + (s === state.slab) + '">' + slabLabels[s] + "</button>"; }).join("")
       + "</div></div>"
       + '<div class="attachment-support attachment-base-details"><div class="attachment-detail-list" id="attachment-floor-detail-buttons">'
       + floorDetails().map(function (item) { return detailChoice(item, "data-base-detail", item.id === state.baseDetailId); }).join("")
       + "</div></div>"
-      + '<div class="attachment-support attachment-option-row"><span class="attachment-label">2 · Attachment method</span><div class="seg" id="attachment-support-buttons">'
+      + '<div class="attachment-support attachment-option-row"><div class="attachment-option-label-row"><span class="attachment-label">2 · Choose attachment method</span><a href="' + attachmentDocumentationHref() + '">View full documentation</a></div><div class="seg" id="attachment-support-buttons">'
       + allowedSupports().map(function (s) { return '<button type="button" data-support="' + s + '" aria-pressed="' + (s === state.support) + '">' + supportLabels[s] + "</button>"; }).join("")
       + "</div></div>"
       + '<div class="attachment-detail-list" id="attachment-detail-buttons">'

@@ -391,6 +391,12 @@ p { text-align: justify; }
 .single-capacity { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
 .single-section-label { margin-bottom: 10px; color: var(--accent); font-family: var(--display); font-size: 11px; font-weight: 900; letter-spacing: .35px; text-transform: uppercase; }
 .single-section-label span { color: var(--ink-faint); font-family: var(--sans); font-weight: 400; letter-spacing: 0; text-transform: none; }
+.single-section-label-with-link, .column-conditions .single-section-label-with-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; text-align: left; }
+.column-conditions .single-section-label-with-link { align-items: baseline; padding-top: 9px; }
+.single-section-label-with-link a { color: var(--accent); font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+@media (max-width: 560px) {
+  .single-section-label-with-link, .column-conditions .single-section-label-with-link { align-items: flex-start; flex-direction: column; gap: 5px; }
+}
 .single-slab-options { width: min(100%,650px); }
 .single-slab-options, .single-attachment-method-options { padding: 0; gap: 0; border: 0; background: transparent; }
 .single-slab-options button + button, .single-attachment-method-options button + button { margin-left: -1px; }
@@ -402,6 +408,10 @@ p { text-align: justify; }
 .single-detail-list { margin-top: 12px; }
 .single-attachment-method { margin-top: 24px; }
 .single-attachment-method-options { width: 100%; }
+.single-attachment-method-options.is-two-row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.single-attachment-method-options.is-two-row button { width: 100%; margin: 0; }
+.single-attachment-method-options.is-two-row button:nth-child(even) { margin-left: -1px; }
+.single-attachment-method-options.is-two-row button:nth-child(n+3) { margin-top: -1px; }
 .single-detail-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .single-detail-options > span { margin-right: 4px; color: var(--ink-soft); font-size: 11.5px; }
 .single-detail-options button { min-width: 74px; min-height: 34px; padding: 7px 12px; border: 1px solid var(--line-strong); background: #fff; color: var(--accent); font: 800 11px/1 var(--mono); cursor: pointer; }
@@ -1249,7 +1259,13 @@ body.hide-transcripts .page-figure details { display: none; }
 .attachment-support { margin-top: 20px; }
 .attachment-support .seg { margin: 7px auto 0; max-width: 620px; }
 .attachment-option-row { display: block; }
+.attachment-option-label-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.attachment-option-label-row .attachment-label { margin: 0; }
+.attachment-option-label-row a { color: var(--accent); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .attachment-option-row .seg { width: 100%; margin: 7px auto 0; }
+@media (max-width: 560px) {
+  .attachment-option-label-row { align-items: flex-start; flex-direction: column; gap: 5px; }
+}
 .attachment-detail-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(145px,1fr)); gap: 10px; margin-top: 12px; }
 .attachment-detail-btn { min-width: 0; border: 1px solid var(--line-strong); background: #fff; padding: 8px; cursor: pointer; color: var(--ink); text-align: left; }
 .attachment-detail-btn:hover { border-color: var(--accent); }

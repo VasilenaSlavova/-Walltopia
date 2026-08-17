@@ -9,7 +9,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="icon" href="assets/walltopia-logo.svg" />
+<<<<<<< Updated upstream
   <link rel="stylesheet" href="styles.css?v=wt184" />
+=======
+  <link rel="stylesheet" href="styles.css?v=wt194" />
+>>>>>>> Stashed changes
 </head>
 <body>
   <header class="masthead">
@@ -47,17 +51,18 @@
           <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
           <button id="zoom-100" type="button">100%</button>
         </div>
-        <a href="manuals/attachment/standard-attachment-details.pdf" download style="text-decoration:none"><button type="button">Download PDF</button></a>
+        <a data-attachment-pdf href="manuals/attachment/walltopia-standard-attachment-details-metric.pdf?v=20260817" download style="text-decoration:none"><button type="button">Download <span data-attachment-units-label>Metric</span> PDF</button></a>
         <span class="info" id="zinfo"></span>
       </div>
       <div class="cadscroll" id="scroll">
-        <img id="sheet" src="manuals/attachment/sheet.png?v=2" draggable="false" alt="Coded standard attachment details drawing sheet, oriented landscape: fixing details for concrete floor, concrete wall, steel column and masonry wall substrates." />
+        <img id="sheet" data-attachment-sheet src="manuals/attachment/sheet-metric.png?v=20260817" draggable="false" alt="Metric Standard Attachment Details drawing sheet" />
       </div>
     </div>
   </main>
 
   <script src="api.js?v=wt4"></script>
   <script src="auth-ui.js?v=wt13"></script>
+  <script src="attachment-units.js?v=wt1"></script>
   <script>
     (function () {
       var scroll = document.getElementById("scroll");
