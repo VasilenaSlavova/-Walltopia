@@ -74,6 +74,9 @@ body > .site-footer { flex: 0 0 auto; }
 
 /* Explanatory paragraphs use justified alignment throughout the desktop site. */
 p { text-align: justify; }
+/* Without hyphenation a ~40-character line justified around a long word opens
+   rivers of white space, so narrow viewports fall back to ragged-right. */
+@media (max-width: 720px) { p { text-align: left; } }
 
 /* ---- masthead ---- */
 .masthead {
@@ -233,10 +236,16 @@ p { text-align: justify; }
 .panel-head h2 { margin-bottom: 0; }
 .panel h2, .results h2 {
   font-family: var(--display); font-size: var(--type-label); text-transform: uppercase; letter-spacing: .7px;
-  color: var(--ink); margin: 0 0 16px; font-weight: 800; display: flex; align-items: center; gap: 9px;
+  color: var(--ink); margin: 0 0 16px; font-weight: 800; display: block;
 }
 .panel .panel-head h2 { margin: 0; }
-.panel h2::before, .results h2::before { content: ""; width: 14px; height: 3px; background: var(--accent); }
+/* Inline marker, not a flex item: as a flex item `align-items: center` parks the
+   rule half-way down a heading that wraps onto a second line, where it reads as a
+   stray bullet. */
+.panel h2::before, .results h2::before {
+  content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 9px;
+  vertical-align: middle; background: var(--accent);
+}
 
 .field { margin-bottom: 18px; }
 .field > label { display: block; font-family: var(--display); font-size: var(--type-label); font-weight: 800; color: var(--ink-soft); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .45px; }
@@ -327,6 +336,26 @@ p { text-align: justify; }
 .result-solution-tabs button:hover, .result-solution-tabs button:focus-visible { border-color: var(--accent); color: var(--accent); outline: 0; box-shadow: inset 0 0 0 1px var(--accent); }
 .result-solution-tabs button[aria-selected="true"] { border-color: var(--accent); background: var(--accent); color: #fff; box-shadow: 0 4px 12px rgba(236,28,36,.2); }
 .result-solution-tabs button[aria-selected="true"] span { border-color: rgba(255,255,255,.62); color: #fff; }
+/* Until one of the two options is chosen the strip is the only thing on offer,
+   so it carries the accent and an instruction underneath. `:has()` keeps the
+   state in CSS instead of a second class the renderer has to remember to set. */
+.result-solution-tabs:not(:has([aria-selected="true"])) {
+  border-color: var(--accent);
+  box-shadow: 0 2px 10px rgba(236, 28, 36, .14);
+}
+.result-solution-prompt {
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  text-align: center;
+}
+.result-solution-prompt::before {
+  content: "↑";
+  display: inline-block;
+  margin-right: 7px;
+  color: var(--accent);
+  font-weight: 800;
+}
 .single-point-section[hidden] { display: none; }
 .single-point-section { margin-top: 18px; }
 .column-point-section { margin-top: 18px; padding-top: 0; }
@@ -548,93 +577,6 @@ table.loads .grp-ll { color: var(--ll); }
   .results-visual-grid .schematic { width: min(100%, 560px); justify-self: center; }
 }
 
-/* 768–960 px: preserve the desktop composition, scaled down proportionally. */
-@media (min-width: 2000px) and (max-width: 1000px) {
-  body { font-size: 13px; }
-
-  .masthead { position: sticky; }
-  .masthead .wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    padding: 10px 12px;
-  }
-  .brand { flex: 0 0 auto; }
-  .brand .logo { width: auto; max-width: none; height: 20px; }
-  .topnav {
-    grid-column: auto;
-    width: auto;
-    min-width: 0;
-    margin: -10px 0;
-    display: flex;
-    align-self: stretch;
-    gap: 0;
-    overflow: visible;
-    border-top: 0;
-  }
-  .topnav a {
-    flex: 0 1 auto;
-    min-width: 0;
-    padding: 10px 5px 8px;
-    justify-content: center;
-    border-right: 0;
-    font-size: clamp(7.5px, 1.02vw, 9.5px);
-    line-height: 1.15;
-    letter-spacing: .25px;
-    text-align: center;
-    white-space: nowrap;
-  }
-  #auth-slot { flex: 0 0 auto; justify-self: auto; gap: 4px; }
-  .auth-btn { padding: 6px 7px; font-size: 8.5px; letter-spacing: .2px; }
-  .auth-name { max-width: 90px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-  .auth-avatar { width: 21px; height: 21px; font-size: 9px; }
-
-  .layout {
-    padding: 14px 12px 44px;
-    grid-template-columns: minmax(205px, 28.5%) minmax(0, 1fr);
-    gap: 12px;
-  }
-  .panel {
-    position: sticky;
-    top: 54px;
-    padding: 12px;
-  }
-  .panel h2 { margin-bottom: 10px; font-size: 10.5px; }
-  .panel .field { margin-bottom: 10px; }
-  .panel .field > label { margin-bottom: 4px; font-size: 9.5px; line-height: 1.35; }
-  .field .hint { font-size: 9px; }
-  .panel .seg button { padding: 6px 4px; font-size: 9.5px; }
-  .panel .chips { gap: 4px; }
-  .panel .chips button { min-width: 30px; padding: 5px 6px; font-size: 10px; }
-  .panel .chips.small button { padding: 5px 5px; }
-  #chips-force-input button { font-size: 8px; }
-  .panel .divider { margin: 11px -12px; }
-  .panel .caprow input { min-width: 0; padding: 6px 7px; font-size: 10.5px; }
-  .panel .caprow .unit { padding-inline: 8px; font-size: 10px; }
-  .cap-check-btn { padding: 6px 8px; font-size: 8.5px; }
-  .toggle-line { gap: 6px; font-size: 10px; line-height: 1.35; }
-
-  .results { padding: 13px 14px; }
-  .results-head { gap: 9px; }
-  .results-head .title { font-size: 19px; }
-  .results-head .sub { margin-top: 4px; font-size: 10px; }
-  .verdict { padding: 9px 10px; gap: 7px; font-size: 10.5px; }
-  .forcebar { margin-top: 13px; }
-  .forcebar .lab { margin-bottom: 5px; font-size: 8.5px; }
-  .forcebar .chips button { padding: 6px 7px; font-size: 9.5px; }
-  table.loads { min-width: 470px; }
-  table.loads th, table.loads td { padding: 7px 6px; font-size: 10.5px; }
-  table.loads thead th { font-size: 8px; letter-spacing: .2px; }
-  .colhdr small { font-size: 8px; }
-  .results-visual-grid { gap: 12px; }
-  .schematic-viewport { min-height: 240px; }
-  .legend { margin-top: 14px; }
-  .legend h3 { margin-bottom: 6px; font-size: 9.5px; }
-  .legend dl { font-size: 10.5px; }
-  .preliminary-banner { padding: 10px 12px; font-size: 10.5px; }
-}
-
 /* True tablet layout: normal scale, stacked calculator and readable controls. */
 @media (min-width: 768px) and (max-width: 960px) {
   body { width: 100%; min-height: 100vh; zoom: 1; font-size: 14px; }
@@ -840,6 +782,7 @@ body.hide-transcripts .page-figure details { display: none; }
 .docs-nav a span { color: var(--ink-faint); font-family: var(--mono); }
 .docs-nav a:hover, .docs-nav a.active { color: var(--accent); background: var(--surface); border-bottom-color: var(--accent); }
 .doc-section { scroll-margin-top: 126px; }
+@media (max-width: 960px) { .doc-section { scroll-margin-top: 70px; } }
 .doc-section-head { display: block; margin-bottom: 18px; padding-bottom: 17px; border-bottom: 1px solid var(--line); }
 .doc-section-head > div { display: flex; align-items: baseline; gap: 13px; }
 .doc-section-head h2 { font-family: var(--display); font-size: 26px; font-weight: 900; letter-spacing: -.7px; margin: 0; }
@@ -926,7 +869,15 @@ body.hide-transcripts .page-figure details { display: none; }
   .book-page { max-width: none; }
   .book-page { transform: none !important; }
 }
-@media (max-width: 720px) { .docs-nav { overflow-x: auto; } .docs-nav a { white-space: nowrap; padding: 12px; } .doc-section-head p { margin-left: 0; } .docs-tools { top: 53px; } }
+/* Two sections, so two equal columns rather than a horizontal scroller: a
+   scroller at this width silently clips the second tab. The document toolbar is
+   three rows tall here, so sticking it would hold a quarter of a phone screen. */
+@media (max-width: 720px) {
+  .subbar { position: static; backdrop-filter: none; }
+  .docs-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+  .docs-nav a { justify-content: center; gap: 6px; padding: 12px 8px; font-size: 11px; line-height: 1.25; text-align: center; white-space: normal; }
+  .doc-section-head p { margin-left: 0; }
+}
 
 /* practical documentation guide */
 .practical-guide { margin-bottom: 68px; }
@@ -1150,7 +1101,22 @@ body.hide-transcripts .page-figure details { display: none; }
 .project-selector span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .proj-card h3 { padding-right: 27px; }
 
-.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+/* `min(290px, 100%)`: below ~350 px of container width a fixed track minimum is
+   wider than the container and the cards overflow. */
+/* The toolbar is a flat row of button, search, "Tag" + select, "Sort" + select.
+   Wrapping it as a flex row splits a label from the control it names, so at phone
+   widths it becomes an explicit two-column grid: label left, control right. */
+@media (max-width: 640px) {
+  .dash-toolbar:not(.bulk-selection-bar) {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px 12px;
+  }
+  .dash-toolbar:not(.bulk-selection-bar) .dash-select-btn { flex: none; grid-column: 1 / -1; width: 100%; }
+  .dash-toolbar:not(.bulk-selection-bar) .dash-search { grid-column: 1 / -1; }
+  .dash-toolbar:not(.bulk-selection-bar) .lbl { grid-column: 1; }
+  .dash-toolbar:not(.bulk-selection-bar) select { grid-column: 2; width: 100%; }
+}
+
+.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr)); gap: 16px; }
 .proj-card { background: #fff; border: 1px solid var(--line); border-top: 3px solid var(--accent); box-shadow: var(--shadow); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
 .proj-card.is-returned { box-shadow: 0 0 0 3px rgba(244,31,43,.18), var(--shadow); transition: box-shadow .5s ease; }
 .project-return-toast { position: fixed; z-index: 1200; top: 76px; left: 50%; transform: translate(-50%,-8px); padding: 11px 18px; background: var(--navy); color: #fff; box-shadow: 0 10px 28px rgba(20,24,39,.25); font: 800 12px/1.2 var(--display); opacity: 0; transition: opacity .18s ease,transform .18s ease; }
@@ -1292,7 +1258,20 @@ body.hide-transcripts .page-figure details { display: none; }
 .ask-contact-strip .ask-office-link:hover { color: var(--accent); }
 .ask-contact-strip p { margin: 6px 0 0; color: var(--ink-soft); font-size: 12.5px; line-height: 1.55; }
 @media (max-width: 850px) { .ask-layout { grid-template-columns: 1fr; } }
-@media (max-width: 699px) { .ask-contact-strip { grid-template-columns: 1fr; } .ask-contact-strip > div { border-right: 0; border-bottom: 1px solid var(--line); } .ask-contact-strip > div:last-child { border-bottom: 0; } }
+/* The dark kicker is a column header: it spans the top of one of three columns.
+   Once the columns stack it spans the full width instead, and the block reads as
+   three alternating dark stripes rather than as a contact list. Stacked, the label
+   becomes an ordinary red caption with an accent rule, like every other section
+   label on the site. */
+@media (max-width: 699px) {
+  .ask-contact-strip { grid-template-columns: minmax(0, 1fr); }
+  .ask-contact-strip > div { padding: 0 0 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .ask-contact-strip > div:last-child { padding-bottom: 0; border-bottom: 0; }
+  .ask-contact-strip .ask-kicker {
+    margin: 16px 0 8px; padding: 0 0 0 11px;
+    background: transparent; border-left: 3px solid var(--accent);
+  }
+}
 @media (max-width: 580px) { .ask-page { padding: 20px 14px 50px; } .ask-form { padding: 20px 16px; } .ask-two { grid-template-columns: 1fr; gap: 0; } .ask-field-wide { grid-column: auto; } }
 
 /* ============ attachment configurator prototype ============ */
@@ -1332,7 +1311,20 @@ body.hide-transcripts .page-figure details { display: none; }
 .attachment-detail-choice { min-width: 0; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 9px; border: 0; background: transparent; padding: 9px 10px; text-align: left; cursor: pointer; color: var(--ink); }
 .attachment-detail-choice b { color: var(--accent); font: 700 11px/1 var(--mono); white-space: nowrap; }
 .attachment-detail-choice span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); font-size: 11.5px; }
+/* The badge is always present, so a detail row reads as a choice that still has
+   to be made rather than as a caption. Unselected it is an outlined "SELECT"
+   call to action; selected it is a filled "SELECTED" state. */
 .attachment-detail-choice em { color: var(--accent); font: 700 9px/1 var(--display); text-transform: uppercase; letter-spacing: .35px; }
+.attachment-detail-choice em[data-state] {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid var(--accent);
+  white-space: nowrap;
+}
+.attachment-detail-choice em[data-state="select"] { color: var(--accent); background: #fff; }
+.attachment-detail-choice em[data-state="selected"] { color: #fff; background: var(--accent); }
+.attachment-detail-row:hover .attachment-detail-choice em[data-state="select"],
+.attachment-detail-choice:focus-visible em[data-state="select"] { color: #fff; background: var(--accent); }
 .attachment-detail-open { align-self: stretch; border: 0; border-left: 1px solid var(--line); background: var(--surface-2); color: var(--accent); padding: 0 10px; font: 700 10px/1 var(--mono); text-transform: uppercase; cursor: pointer; }
 .attachment-detail-open:hover, .attachment-detail-open:focus-visible { background: var(--accent); color: #fff; }
 .attachment-list-preview { position: fixed; z-index: 900; width: min(500px,calc(100vw - 24px)); padding: 13px; background: #fff; border: 1px solid var(--line-strong); border-top: 3px solid var(--accent); box-shadow: 0 14px 38px rgba(25,28,39,.24); pointer-events: none; }
@@ -1477,8 +1469,15 @@ body.attachment-modal-open { overflow: hidden; }
   .single-point-grid .schematic { height: 600px; min-height: 600px; }
   .single-point-grid.is-three-levels .schematic { height: 660px; min-height: 660px; }
   .single-point-left .attachment-detail-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .single-point-left .attachment-detail-choice em { font-size: 0; }
-  .single-point-left .attachment-detail-choice em::after { content: "✓"; font: 800 11px/1 var(--display); }
+  /* Two detail columns at this width leave no room for the word, so the badge
+     shrinks to a glyph. It must still distinguish "pick one" from "picked":
+     collapsing both to a tick was fine while only the selected row had a badge.
+     The gap is tightened too, because the badge now sits on every row and the
+     detail name is what loses the width. */
+  .single-point-left .attachment-detail-choice { gap: 6px; padding-inline: 8px; }
+  .single-point-left .attachment-detail-choice em[data-state] { padding: 3px 4px; font-size: 0; }
+  .single-point-left .attachment-detail-choice em[data-state="select"]::after { content: "+"; font: 800 11px/1 var(--display); }
+  .single-point-left .attachment-detail-choice em[data-state="selected"]::after { content: "✓"; font: 800 11px/1 var(--display); }
   .column-point-body { grid-template-rows: auto 380px; }
   .column-point-body > #attachment-config-root { height: 380px; min-height: 380px; }
   .column-capacity-controls { gap: 8px; }
@@ -1574,6 +1573,12 @@ body.attachment-modal-open { overflow: hidden; }
   .auth-user { gap: 5px; }
   .auth-avatar { width: 24px; height: 24px; font-size: 10px; }
   .auth-btn { padding: 7px 9px; font-size: 9.5px; }
+}
+
+/* The kicker only bleeds to the card edges while the strip is still in columns.
+   Below 700 px it stacks and the rule above turns it into a plain caption, so
+   these two declarations are scoped out of that range instead of overriding it. */
+@media (min-width: 700px) and (max-width: 782px) {
   .ask-contact-strip > div { padding: 0 16px 16px; }
   .ask-contact-strip .ask-kicker { margin-inline: -16px; padding-inline: 16px; }
 }
