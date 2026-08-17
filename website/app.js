@@ -12,7 +12,11 @@
   // ---- state ----
   var S = { units: "EU", type: "wall", height: null, levels: null,
             span: null, overhang: null, force: null, factored: false, cap: null,
-            baseCapacity: null, sideCapacity: null, columnCapacities: {}, attachmentSolution: "single" };
+            baseCapacity: null, sideCapacity: null, columnCapacities: {}, attachmentSolution: "single",
+            // The two attachment options are a decision, not a default: the results stay
+            // closed until one is picked, so nobody reads Option 1 thinking it is "the"
+            // answer. Saved projects arrive with the choice already made.
+            solutionPicked: false };
   var selectedInputs = { units: false, type: false, height: false, levels: false, span: false, overhang: false, force: false };
   var singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
   var columnPointSelection = { support: null, attachmentDetail: null };
@@ -415,13 +419,13 @@
       + '<div class="seg single-slab-options"><button type="button" data-single-slab="hollow" aria-pressed="' + (slab === "hollow") + '">Hollow panel slab</button><button type="button" data-single-slab="solid" aria-pressed="' + (slab === "solid") + '">Solid concrete slab</button></div>'
       + (details.length ? '<div class="attachment-detail-list single-detail-list">' + details.map(function (code) {
           var selected = singlePointSelection.detail === code;
-          return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '"><button class="attachment-detail-choice" type="button" data-single-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + detailNames[code] + '</span>' + (selected ? '<em>Selected</em>' : '') + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
+          return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '"><button class="attachment-detail-choice" type="button" data-single-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + detailNames[code] + '</span>' + '<em data-state="' + (selected ? 'selected' : 'select') + '">' + (selected ? 'Selected' : 'Select') + '</em>' + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
         }).join("") + '</div>' : '')
       + '<div class="single-attachment-method"><div class="single-section-label">2 · Choose attachment method</div><div class="seg single-attachment-method-options">'
       + supports.map(function (item) { return '<button type="button" data-single-support="' + item + '" aria-pressed="' + (support === item) + '">' + supportLabels[item] + '</button>'; }).join("") + '</div>'
       + (supportDetails.length ? '<div class="attachment-detail-list single-detail-list single-support-detail-list">' + supportDetails.map(function (code) {
           var selected = singlePointSelection.attachmentDetail === code;
-          return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '"><button class="attachment-detail-choice" type="button" data-single-attachment-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + singleDetailMeta[code].title + '</span>' + (selected ? '<em>Selected</em>' : '') + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
+          return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '"><button class="attachment-detail-choice" type="button" data-single-attachment-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + singleDetailMeta[code].title + '</span>' + '<em data-state="' + (selected ? 'selected' : 'select') + '">' + (selected ? 'Selected' : 'Select') + '</em>' + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
         }).join("") + '</div>' : '')
       + '</div>'
       + '</section>';
@@ -531,7 +535,7 @@
       + (details.length ? '<div class="attachment-detail-list single-detail-list">' + details.map(function (code) {
           var selected=columnPointSelection.attachmentDetail===code;
           var title = code === "CW-02" ? "Solid concrete column · Detail 02" : singleDetailMeta[code].title;
-          return '<div class="attachment-detail-row' + (selected?' is-selected':'') + '"><button class="attachment-detail-choice" type="button" data-column-attachment-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + title + '</span>' + (selected?'<em>Selected</em>':'') + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
+          return '<div class="attachment-detail-row' + (selected?' is-selected':'') + '"><button class="attachment-detail-choice" type="button" data-column-attachment-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + title + '</span>' + '<em data-state="' + (selected ? 'selected' : 'select') + '">' + (selected ? 'Selected' : 'Select') + '</em>' + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
         }).join("") + '</div>' : '') + '</section>';
   }
 
@@ -687,7 +691,13 @@
   function wireResultOptionTabs() {
     document.querySelectorAll("[data-result-option]").forEach(function (button) {
       button.addEventListener("click", function () {
+        var wasPicked = S.solutionPicked;
         S.attachmentSolution = button.getAttribute("data-result-option");
+        S.solutionPicked = true;
+        // Before the first pick the two sections are not in the document at all,
+        // so there is nothing to toggle: re-render to build them. Afterwards the
+        // in-place toggle keeps scroll position and the schematic's zoom state.
+        if (!wasPicked) { renderResults(); return; }
         document.querySelectorAll("[data-result-option]").forEach(function (item) {
           var active=item.getAttribute("data-result-option")===S.attachmentSolution;
           item.setAttribute("aria-selected",String(active));
@@ -724,15 +734,20 @@
 
     var values = singlePointValues();
     var columnValues = columnPointValues();
+    var picked = !!S.solutionPicked;
+    var prompt = picked ? '' :
+      '<p class="result-solution-prompt">Choose one of the two attachment solutions above to see the loads,'
+      + ' the attachment details and the capacity check.</p>';
     var html = '<div class="results-reveal"><div class="results-head">'
       + '<div><p class="title">' + title + '</p><p class="sub">' + sub + '</p></div>'
       + '</div><div class="result-solution-tabs" role="tablist" aria-label="Choose attachment solution">'
-      + '<button type="button" role="tab" data-result-option="single" aria-selected="' + (S.attachmentSolution==="single") + '" tabindex="' + (S.attachmentSolution==="single"?'0':'-1') + '"><span>OPTION 1:</span> Single-point attachment</button>'
-      + '<button type="button" role="tab" data-result-option="beams" aria-selected="' + (S.attachmentSolution==="beams") + '" tabindex="' + (S.attachmentSolution==="beams"?'0':'-1') + '"><span>OPTION 2:</span> Walltopia support beams</button></div>'
-      + '<section class="single-point-section" data-result-section="single"' + (S.attachmentSolution==="single"?'':' hidden') + '><div class="single-point-heading"><div><h2>Direct Single-Point Attachment</h2><p>The climbing wall is connected directly to the existing structure at individual attachment points.</p></div></div>'
+      + '<button type="button" role="tab" data-result-option="single" aria-selected="' + (picked && S.attachmentSolution==="single") + '" tabindex="' + (!picked || S.attachmentSolution==="single"?'0':'-1') + '"><span>OPTION 1:</span> Single-point attachment</button>'
+      + '<button type="button" role="tab" data-result-option="beams" aria-selected="' + (picked && S.attachmentSolution==="beams") + '" tabindex="' + (picked && S.attachmentSolution==="beams"?'0':'-1') + '"><span>OPTION 2:</span> Walltopia support beams</button></div>'
+      + prompt
+      + '<section class="single-point-section" data-result-section="single"' + (picked && S.attachmentSolution==="single"?'':' hidden') + '><div class="single-point-heading"><div><h2>Direct Single-Point Attachment</h2><p>The climbing wall is connected directly to the existing structure at individual attachment points.</p></div></div>'
       + '<div class="single-point-grid' + (Number(S.levels) >= 3 ? ' is-three-levels' : '') + '"><div class="single-point-left">' + singlePointTableHtml(values) + singlePointConditionsHtml() + '</div>' + schematicPanelHtml() + '</div>'
       + singleCapacityHtml() + notesHtml() + '</section>'
-      + '<section class="single-point-section column-point-section" data-result-section="beams"' + (S.attachmentSolution==="beams"?'':' hidden') + '><div class="single-point-heading"><div><h2>Walltopia Support Beams Between Building Columns</h2><p>Walltopia support beams are added between the existing building columns, and the climbing wall is attached to the beams.</p></div></div>'
+      + '<section class="single-point-section column-point-section" data-result-section="beams"' + (picked && S.attachmentSolution==="beams"?'':' hidden') + '><div class="single-point-heading"><div><h2>Walltopia Support Beams Between Building Columns</h2><p>Walltopia support beams are added between the existing building columns, and the climbing wall is attached to the beams.</p></div></div>'
       + '<div class="column-point-body">' + columnPointTableHtml(columnValues) + columnPointConditionsHtml() + '<div id="attachment-config-root" data-visual-only="true"></div></div>'
       + columnCapacityHtml() + notesHtml() + '</section></div>';
     root.innerHTML = html;
@@ -1111,7 +1126,7 @@
       overhang: S.overhang, span: S.span, force: S.force, factored: S.factored,
       capacity: S.cap, baseCapacity: S.baseCapacity, sideCapacity: S.sideCapacity,
       columnCapacities: S.columnCapacities,
-      attachmentSolution: S.attachmentSolution,
+      attachmentSolution: S.attachmentSolution, solutionPicked: S.solutionPicked,
       supportingSlab: singlePointSelection.slab, baseDetail: singlePointSelection.detail,
       supportingStructure: singlePointSelection.support, attachmentDetail: singlePointSelection.attachmentDetail,
       columnSupportingStructure: columnPointSelection.support, columnAttachmentDetail: columnPointSelection.attachmentDetail };
@@ -1126,6 +1141,9 @@
     S.sideCapacity = inp.sideCapacity !== undefined && inp.sideCapacity !== null ? Number(inp.sideCapacity) : null;
     S.columnCapacities = inp.columnCapacities && typeof inp.columnCapacities === "object" ? inp.columnCapacities : {};
     S.attachmentSolution = inp.attachmentSolution === "beams" ? "beams" : "single";
+    // A restored draft or project already carries a decision; only a fresh
+    // calculator starts with the results closed.
+    S.solutionPicked = !!inp.solutionPicked;
     if (inp.supportingSlab) singlePointSelection.slab = inp.supportingSlab;
     if (inp.baseDetail) singlePointSelection.detail = inp.baseDetail;
     if (inp.supportingStructure) singlePointSelection.support = inp.supportingStructure;
@@ -1329,6 +1347,11 @@
       var res = await window.WTApi.getProject(id);
       P = res.project;
       applyInput(P.input);
+      // Opening a saved project is not entering a new calculation: the design was
+      // already decided when it was saved, so the results open straight away. The
+      // server also drops `solutionPicked` (it is not in the stored-input
+      // whitelist), so it cannot be recovered from the record itself.
+      S.solutionPicked = true;
       clampAndRender();
       renderProjectBar();
       if (new URLSearchParams(location.search).get("export") === "pdf") {
@@ -1374,6 +1397,7 @@
     S.sideCapacity = null;
     S.columnCapacities = {};
     S.attachmentSolution = "single";
+    S.solutionPicked = false;
     singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
     columnPointSelection = { support: null, attachmentDetail: null };
     Object.keys(selectedInputs).forEach(function (key) { selectedInputs[key] = false; });

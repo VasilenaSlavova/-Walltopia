@@ -22,5 +22,8 @@
   });
   nav.addEventListener("click", function (event) { if (event.target.closest("a")) closeMenu(); });
   document.addEventListener("keydown", function (event) { if (event.key === "Escape") closeMenu(); });
-  window.addEventListener("resize", function () { if (window.innerWidth > 520) closeMenu(); });
+  // Must match the CSS breakpoint that turns .topnav back into a row (782 px).
+  // At 520 the panel was being closed while the toggle was still the only way to
+  // reach the navigation, so the menu shut itself on any resize between the two.
+  window.addEventListener("resize", function () { if (window.innerWidth > 782) closeMenu(); });
 })();
