@@ -16,10 +16,13 @@
             // The two attachment options are a decision, not a default: the results stay
             // closed until one is picked, so nobody reads Option 1 thinking it is "the"
             // answer. Saved projects arrive with the choice already made.
-            solutionPicked: false };
+            solutionPicked: false,
+            // Req 1: the loads are shown on request, not as a side effect of the
+            // last chip being picked, so a half-filled form never reads as a result.
+            loadsRequested: false };
   var selectedInputs = { units: false, type: false, height: false, levels: false, span: false, overhang: false, force: false };
   var singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
-  var columnPointSelection = { support: null, attachmentDetail: null };
+  var columnPointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
   var CALCULATOR_DRAFT_KEY = "walltopia.calculator.draft.v1";
   var schematicView = { scale: 1, panX: 0, panY: 0 };
   var mobileResultsWasReady = false;
@@ -54,6 +57,28 @@
     var over = w ? uniq(w.rows.map(function (r) { return r.x; })).sort(num) : [];
     return { heights: wallHeights, spans: spans, overhangs: over };
   }
+
+  // Option 1 reads only the R values, and those are identical for every column
+  // span A (checked against every row of both tables), so A is not one of its
+  // inputs. Option 2 reads the L values, which do depend on A.
+  function usesSpan() { return !S.solutionPicked || S.attachmentSolution === "beams"; }
+  var FIELD_IDS = { units: "field-units", type: "field-type", height: "field-height",
+    levels: "field-scheme", span: "field-span", overhang: "field-overhang", force: "field-force-level" };
+  var FIELD_LABELS = { units: "Units", type: "Structure type", height: "Climbing-surface height",
+    levels: "Attachment scheme", span: "Column span A", overhang: "Overhang X", force: "Live load force level" };
+  function requiredInputs() {
+    var keys = ["units", "type", "height", "overhang"];
+    if (usesSpan()) keys.push("span");
+    if (S.type === "wall") keys.push("levels", "force");
+    return keys;
+  }
+  function missingInputs() {
+    return requiredInputs().filter(function (key) { return !selectedInputs[key]; });
+  }
+  function inputsReady() { return missingInputs().length === 0; }
+  // The drawing is available as soon as an option is picked; the numbers on it
+  // wait for View loads, the same gate as the tables.
+  function loadsVisible() { return S.loadsRequested && inputsReady(); }
 
   // ---- unit-aware formatting ----
   function U() { return DATA.meta.units[S.units]; }
@@ -158,6 +183,9 @@
     }
 
     var opt = optionsFor();
+    // Req 3: Option 1 never reads the span, so the chips would only be noise.
+    var spanField = document.getElementById("field-span");
+    if (spanField) spanField.style.display = usesSpan() ? "" : "none";
     document.getElementById("lbl-span").innerHTML =
       "Column span · A <span class=\"hint\">(" + (S.units === "EU" ? "m" : "ft") + ", between building columns)</span>";
     chips("chips-span", opt.spans, selectedInputs.span ? S.span : null, function (v) { S.span = v; selectedInputs.span = true; clampAndRender(); },
@@ -211,7 +239,21 @@
     clampAndRender();
   }
 
+  function showMissingInputs(missing) {
+    Object.keys(FIELD_IDS).forEach(function (key) {
+      var field = document.getElementById(FIELD_IDS[key]);
+      if (field) field.classList.toggle("is-missing", missing.indexOf(key) >= 0);
+    });
+    var msg = document.getElementById("view-loads-msg");
+    if (!msg) return;
+    if (!missing.length) { msg.hidden = true; msg.textContent = ""; return; }
+    msg.hidden = false;
+    msg.textContent = "Still to choose: " + missing.map(function (key) { return FIELD_LABELS[key]; }).join(", ") + ".";
+  }
+  function clearMissingInputs() { showMissingInputs([]); }
+
   function clampAndRender() {
+    clearMissingInputs();
     var opt = optionsFor();
     if (opt.spans.indexOf(S.span) < 0) {
       S.span = opt.spans.includes(6) ? 6 : opt.spans[0];
@@ -691,69 +733,78 @@
   function wireResultOptionTabs() {
     document.querySelectorAll("[data-result-option]").forEach(function (button) {
       button.addEventListener("click", function () {
-        var wasPicked = S.solutionPicked;
         S.attachmentSolution = button.getAttribute("data-result-option");
         S.solutionPicked = true;
-        // Before the first pick the two sections are not in the document at all,
-        // so there is nothing to toggle: re-render to build them. Afterwards the
-        // in-place toggle keeps scroll position and the schematic's zoom state.
-        if (!wasPicked) { renderResults(); return; }
-        document.querySelectorAll("[data-result-option]").forEach(function (item) {
-          var active=item.getAttribute("data-result-option")===S.attachmentSolution;
-          item.setAttribute("aria-selected",String(active));
-          item.setAttribute("tabindex",active?"0":"-1");
-        });
-        document.querySelectorAll("[data-result-section]").forEach(function (section) {
-          section.hidden=section.getAttribute("data-result-section")!==S.attachmentSolution;
-        });
+        // Which inputs are required changes with the option (req 3), so the
+        // controls are rebuilt too. Hold the scroll position across the redraw.
+        var scrollY = window.scrollY;
+        clampAndRender();
+        window.scrollTo(0, scrollY);
         try { localStorage.setItem(CALCULATOR_DRAFT_KEY,JSON.stringify(currentInput())); } catch (error) {}
       });
     });
   }
 
+  function resultHeadHtml() {
+    var u = U();
+    var typeLabel = selectedInputs.type ? (S.type === "wall" ? "Climbing wall" : "Boulder wall") : "Preliminary loads";
+    var title = typeLabel + (selectedInputs.height ? " " + fmtLen(S.height) : "");
+    var bits = [];
+    if (S.type === "wall" && selectedInputs.levels) bits.push(S.levels + (S.levels === 1 ? " attachment level" : " attachment levels"));
+    if (S.type === "boulder") bits.push("single attachment");
+    if (usesSpan() && selectedInputs.span) bits.push("span A = " + fmtLen(S.span));
+    if (selectedInputs.overhang) bits.push("overhang X = " + fmtLen(S.overhang));
+    bits.push((S.factored ? "factored" : "characteristic") + " values in " + u.force);
+    return '<div class="results-head"><div><p class="title">' + title + '</p><p class="sub">' + bits.join(" · ") + '</p></div></div>';
+  }
+
+  // Shown in place of the load table while the drawing is already on screen.
+  function loadsLockedHtml() {
+    var missing = missingInputs();
+    return '<div class="loads-locked">'
+      + '<strong>' + (missing.length ? "Some inputs are still open" : "Loads are ready") + '</strong>'
+      + '<span>' + (missing.length
+          ? "Choose " + missing.map(function (key) { return FIELD_LABELS[key]; }).join(", ") + ", then press <b>View loads</b>."
+          : "Press <b>View loads</b> to calculate this configuration.") + '</span></div>';
+  }
+
   function renderResults() {
     var root = document.getElementById("result-root");
-    var ready = selectedInputs.units && selectedInputs.type && selectedInputs.height && selectedInputs.span && selectedInputs.overhang
-      && (S.type === "boulder" || (selectedInputs.levels && selectedInputs.force));
-    var shouldAutoScroll = ready && !mobileResultsWasReady && mobileResultsAutoScrollEnabled && window.innerWidth <= 960;
-    mobileResultsWasReady = ready;
-    if (!ready) {
-      root.innerHTML = '<div class="empty">Select the calculator inputs to view the results.</div>';
-      window.WTCalculatorPayload = null;
-      return;
-    }
-    var u = U();
+    var picked = !!S.solutionPicked;
     var have = S.type === "boulder" ? !!boulderRow() : wallRows().length > 0;
-    if (!have) { root.innerHTML = '<div class="empty">No table entry for this combination.</div>'; return; }
-
-    var heightLbl = fmtLen(S.height);
-    var schemeLbl = S.type === "wall" ? (S.levels + (S.levels === 1 ? " attachment level" : " attachment levels")) : "single attachment";
-    var title = (S.type === "wall" ? "Climbing wall " : "Boulder wall ") + heightLbl;
-    var sub = schemeLbl + " · span A = " + fmtLen(S.span) + " · overhang X = " + fmtLen(S.overhang)
-            + " · characteristic values in " + u.force + (S.factored ? " · factored" : "");
+    var revealed = loadsVisible() && have;
+    var shouldAutoScroll = revealed && !mobileResultsWasReady && mobileResultsAutoScrollEnabled && window.innerWidth <= 960;
+    mobileResultsWasReady = revealed;
 
     var values = singlePointValues();
     var columnValues = columnPointValues();
-    var picked = !!S.solutionPicked;
+    var singleActive = picked && S.attachmentSolution === "single";
+    var beamsActive = picked && S.attachmentSolution === "beams";
     var prompt = picked ? '' :
-      '<p class="result-solution-prompt">Choose one of the two attachment solutions above to see the loads,'
-      + ' the attachment details and the capacity check.</p>';
-    var html = '<div class="results-reveal"><div class="results-head">'
-      + '<div><p class="title">' + title + '</p><p class="sub">' + sub + '</p></div>'
-      + '</div><div class="result-solution-tabs" role="tablist" aria-label="Choose attachment solution">'
-      + '<button type="button" role="tab" data-result-option="single" aria-selected="' + (picked && S.attachmentSolution==="single") + '" tabindex="' + (!picked || S.attachmentSolution==="single"?'0':'-1') + '"><span>OPTION 1:</span> Single-point attachment</button>'
-      + '<button type="button" role="tab" data-result-option="beams" aria-selected="' + (picked && S.attachmentSolution==="beams") + '" tabindex="' + (picked && S.attachmentSolution==="beams"?'0':'-1') + '"><span>OPTION 2:</span> Walltopia support beams</button></div>'
+      '<p class="result-solution-prompt">Choose one of the two attachment solutions above to see its'
+      + ' visualization, then press <b>View loads</b> for the load values, the attachment details'
+      + ' and the capacity check.</p>';
+    var noTable = revealed || have ? '' :
+      '<div class="loads-locked"><strong>No table entry for this combination</strong><span>Pick a different span or overhang.</span></div>';
+
+    var html = '<div class="results-reveal">' + resultHeadHtml()
+      + '<div class="result-solution-tabs" role="tablist" aria-label="Choose attachment solution">'
+      + '<button type="button" role="tab" data-result-option="single" aria-selected="' + singleActive + '" tabindex="' + (!picked || singleActive ? '0' : '-1') + '"><span>OPTION 1:</span> Single-point attachment</button>'
+      + '<button type="button" role="tab" data-result-option="beams" aria-selected="' + beamsActive + '" tabindex="' + (beamsActive ? '0' : '-1') + '"><span>OPTION 2:</span> Walltopia support beams</button></div>'
       + prompt
-      + '<section class="single-point-section" data-result-section="single"' + (picked && S.attachmentSolution==="single"?'':' hidden') + '><div class="single-point-heading"><div><h2>Direct Single-Point Attachment</h2><p>The climbing wall is connected directly to the existing structure at individual attachment points.</p></div></div>'
-      + '<div class="single-point-grid' + (Number(S.levels) >= 3 ? ' is-three-levels' : '') + '"><div class="single-point-left">' + singlePointTableHtml(values) + singlePointConditionsHtml() + '</div>' + schematicPanelHtml() + '</div>'
-      + singleCapacityHtml() + notesHtml() + '</section>'
-      + '<section class="single-point-section column-point-section" data-result-section="beams"' + (picked && S.attachmentSolution==="beams"?'':' hidden') + '><div class="single-point-heading"><div><h2>Walltopia Support Beams Between Building Columns</h2><p>Walltopia support beams are added between the existing building columns, and the climbing wall is attached to the beams.</p></div></div>'
-      + '<div class="column-point-body">' + columnPointTableHtml(columnValues) + columnPointConditionsHtml() + '<div id="attachment-config-root" data-visual-only="true"></div></div>'
-      + columnCapacityHtml() + notesHtml() + '</section></div>';
+      + '<section class="single-point-section" data-result-section="single"' + (singleActive ? '' : ' hidden') + '><div class="single-point-heading"><div><h2>Direct Single-Point Attachment</h2><p>The climbing wall is connected directly to the existing structure at individual attachment points.</p></div></div>'
+      + '<div class="single-point-grid' + (Number(S.levels) >= 3 ? ' is-three-levels' : '') + '"><div class="single-point-left">'
+      + (revealed ? singlePointTableHtml(values) : loadsLockedHtml() + noTable) + singlePointConditionsHtml() + '</div>' + schematicPanelHtml() + '</div>'
+      + (revealed ? singleCapacityHtml() + notesHtml() : '') + '</section>'
+      + '<section class="single-point-section column-point-section" data-result-section="beams"' + (beamsActive ? '' : ' hidden') + '><div class="single-point-heading"><div><h2>Walltopia Support Beams Between Building Columns</h2><p>Walltopia support beams are added between the existing building columns, and the climbing wall is attached to the beams.</p></div></div>'
+      + '<div class="column-point-body">' + (revealed ? columnPointTableHtml(columnValues) : loadsLockedHtml() + noTable)
+      + columnPointConditionsHtml() + '<div id="attachment-config-root" data-visual-only="true"></div></div>'
+      + (revealed ? columnCapacityHtml() + notesHtml() : '') + '</section></div>';
     root.innerHTML = html;
     wireSchematicView();
     wireSinglePointControls();
-    var calculatorPayload = { input: currentInput(), snapshot: currentSnapshot() };
+    var calculatorPayload = { input: currentInput(), snapshot: currentSnapshot(),
+      selected: Object.assign({}, selectedInputs), showForces: revealed };
     window.WTCalculatorPayload = calculatorPayload;
     window.dispatchEvent(new CustomEvent("wtcalculatorchange", { detail: calculatorPayload }));
     try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
