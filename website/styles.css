@@ -356,6 +356,72 @@ p { text-align: justify; }
   color: var(--accent);
   font-weight: 800;
 }
+
+/* ==== Vasi Aug-18 flow: options first, then inputs + View loads ==== */
+/* #1: before an option is chosen only the two options show; the inputs panel is
+   hidden and the chooser spans the full width. */
+.layout.is-choosing { grid-template-columns: minmax(0, 1fr); }
+.layout.is-choosing .panel { display: none; }
+.solution-chooser { max-width: 760px; margin-inline: auto; padding-block: 6px; text-align: center; }
+.solution-chooser .results-head { justify-content: center; }
+.solution-chooser .results-head .sub { margin-inline: auto; }
+.solution-chooser .result-solution-tabs { margin-top: 20px; }
+
+/* #3: View loads lives in the inputs panel, just above the factored toggle. */
+.view-loads-row { margin: 20px 0 6px; }
+.view-loads-btn {
+  width: 100%;
+  padding: 13px 18px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .16s ease, box-shadow .16s ease;
+}
+.view-loads-btn:hover, .view-loads-btn:focus-visible { background: var(--accent-dark); outline: 0; box-shadow: 0 4px 12px rgba(236,28,36,.24); }
+.view-loads-msg {
+  margin: 9px 0 0;
+  padding: 8px 11px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--bad);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* #3: required-but-empty fields glow red once View loads is pressed. */
+.field.is-missing {
+  padding: 10px;
+  margin-inline: -10px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  animation: field-glow 1.1s ease-in-out infinite;
+}
+@keyframes field-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(236,28,36,0); }
+  50% { box-shadow: 0 0 0 3px rgba(236,28,36,.18); }
+}
+@media (prefers-reduced-motion: reduce) { .field.is-missing { animation: none; } }
+
+/* #2.1/#3: placeholder in place of the load table while the drawing is on screen
+   but the numbers have not been requested. */
+.loads-locked {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 16px;
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-2);
+  margin-bottom: 14px;
+}
+.loads-locked strong { font-family: var(--display); font-size: 13px; color: var(--ink); }
+.loads-locked span { font-size: 12.5px; color: var(--ink-soft); }
+.loads-locked b { color: var(--accent); }
 .single-point-section[hidden] { display: none; }
 .single-point-section { margin-top: 18px; }
 .column-point-section { margin-top: 18px; padding-top: 0; }
@@ -1371,6 +1437,24 @@ body.hide-transcripts .page-figure details { display: none; }
 .attachment-acs .acs-lx-label { font-family: var(--mono); font-size: 10px; font-weight: 700; }
 .attachment-acs .acs-lx-label.is-ll { fill: var(--accent); }
 .attachment-acs .acs-lx-label.is-dl { fill: #111; }
+/* Vasi #4.1 / #5: supporting-slab glyph + green extra columns on the Option 2 drawing */
+.attachment-acs .acs-extra-column { stroke: #22a06b; stroke-width: 4; stroke-linecap: round; opacity: .9; }
+.attachment-acs .acs-slab-placeholder { fill: rgba(34,160,107,.14); stroke: #22a06b; stroke-width: 3; }
+.attachment-acs .acs-slab-body { fill: rgba(34,160,107,.12); stroke: #22a06b; stroke-width: 3; }
+.attachment-acs .acs-slab-core { fill: #fff; stroke: #22a06b; stroke-width: 1.6; }
+.attachment-acs .acs-slab-hatch { stroke: #22a06b; stroke-width: 1.4; fill: none; }
+.attachment-acs .acs-slab-label { fill: #1a7f56; font-family: var(--sans); font-size: 12px; font-weight: 800; }
+.attachment-acs .acs-slab-label { paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+/* The slab is interactive like the red points; beat the blanket pointer-events:none. */
+.attachment-acs .acs-slab.attachment-point { cursor: pointer; }
+.attachment-acs .acs-slab.attachment-point rect,
+.attachment-acs .acs-slab.attachment-point circle,
+.attachment-acs .acs-slab.attachment-point path,
+.attachment-acs .acs-slab.attachment-point text { pointer-events: all; cursor: pointer; }
+.attachment-acs .acs-slab.attachment-point:hover .acs-slab-body,
+.attachment-acs .acs-slab.attachment-point:focus-visible .acs-slab-body,
+.attachment-acs .acs-slab.attachment-point:hover .acs-slab-placeholder,
+.attachment-acs .acs-slab.attachment-point:focus-visible .acs-slab-placeholder { stroke-width: 4.6; }
 .attachment-acs .acs-contour { fill: #dbe7fb; stroke: #2463eb; stroke-width: 2; }
 .attachment-acs .acs-top-contour { fill: none; stroke: #2463eb; stroke-width: 2; }
 .attachment-acs .acs-dim { stroke: #64748b; stroke-width: 1.2; }
