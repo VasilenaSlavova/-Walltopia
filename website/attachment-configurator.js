@@ -75,7 +75,7 @@
     return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '">'
       + '<button class="attachment-detail-choice" type="button" ' + attribute + '="' + d.id + '" data-preview-detail="' + d.id + '" aria-pressed="' + selected + '">'
       + '<b>' + d.id + '</b><span>' + detailName(d) + '</span>'
-      + (selected ? '<em>Selected</em>' : '') + '</button>'
+      + '<em data-state="' + (selected ? 'selected' : 'select') + '">' + (selected ? 'Selected' : 'Select') + '</em></button>'
       + '<button class="attachment-detail-open" type="button" data-full-detail="' + d.id + '" aria-label="Open full detail ' + d.id + '">View</button></div>';
   }
 
