@@ -29,6 +29,9 @@ export default function Calculator() {
   const [s, setS] = useState(L.initialState());
   const [project, setProject] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [loadsRequested, setLoadsRequested] = useState(false);
+  const [showMissing, setShowMissing] = useState(false);
+  const [touched, setTouched] = useState({ height: false, levels: false, span: false, overhang: false, slab: false });
   const [params, setParams] = useSearchParams();
   const projectId = params.get("project");
 
@@ -59,8 +62,24 @@ export default function Calculator() {
 
   const um = L.unitMeta(data, s.units);
   const opt = L.optionsFor(data, s);
-  const update = (patch) => setS((prev) => L.clampState(data, { ...prev, ...patch }));
+  const update = (patch, field) => {
+    if (field) setTouched((prev) => ({ ...prev, [field]: true }));
+    setLoadsRequested(false);
+    setS((prev) => L.clampState(data, { ...prev, ...patch }));
+  };
   const setUnits = (v) => setS((prev) => L.clampState(data, { ...prev, units: v, cap: v !== prev.units ? null : prev.cap }));
+  const requiredFields = s.type === "wall" ? ["height", "levels", "span", "overhang", "slab"] : ["height", "overhang", "slab"];
+  const missingFields = requiredFields.filter((field) => !touched[field]);
+  const fieldMissing = (field) => showMissing && missingFields.includes(field);
+  const viewLoads = () => {
+    if (missingFields.length) {
+      setShowMissing(true);
+      setLoadsRequested(false);
+      return;
+    }
+    setShowMissing(false);
+    setLoadsRequested(true);
+  };
 
   const have = L.hasResult(data, s);
   const gov = L.govColumnLoad(data, s);
@@ -102,27 +121,35 @@ export default function Calculator() {
           <div className="hint">{s.type === "wall" ? "With protection points · " + um.codeWall : "Without protection points · " + um.codeBoulder}</div>
         </div>
 
-        <div className="field">
+        <div className={"field" + (fieldMissing("height") ? " missing" : "")}>
           <label>Climbing-surface height <span className="hint">({unitLbl})</span></label>
-          <Chips values={opt.heights} value={s.height} onChange={(v) => update({ height: v })} label={lenChip(s.units)} />
+          <Chips values={opt.heights} value={s.height} onChange={(v) => update({ height: v }, "height")} label={lenChip(s.units)} />
         </div>
 
         {s.type === "wall" && (
-          <div className="field">
+          <div className={"field" + (fieldMissing("levels") ? " missing" : "")}>
             <label>Attachment scheme <span className="hint">(levels of attachment by height)</span></label>
-            <Chips small values={opt.schemes} value={s.levels} onChange={(v) => update({ levels: v })}
+            <Chips small values={opt.schemes} value={s.levels} onChange={(v) => update({ levels: v }, "levels")}
               label={(v) => v + (v === 1 ? " level" : " levels")} />
           </div>
         )}
 
-        <div className="field">
-          <label>Column span · A <span className="hint">({unitLbl}, between building columns)</span></label>
-          <Chips values={opt.spans} value={s.span} onChange={(v) => update({ span: v })} label={lenChip(s.units)} />
+        {s.type === "wall" && (
+          <div className={"field" + (fieldMissing("span") ? " missing" : "")}>
+            <label>Column span · A <span className="hint">({unitLbl}, between building columns)</span></label>
+            <Chips values={opt.spans} value={s.span} onChange={(v) => update({ span: v }, "span")} label={lenChip(s.units)} />
+          </div>
+        )}
+
+        <div className={"field" + (fieldMissing("overhang") ? " missing" : "")}>
+          <label>Overhang · X <span className="hint">({unitLbl}, top − bottom contour)</span></label>
+          <Chips values={opt.overhangs} value={s.overhang} onChange={(v) => update({ overhang: v }, "overhang")} label={lenChip(s.units)} />
         </div>
 
-        <div className="field">
-          <label>Overhang · X <span className="hint">({unitLbl}, top − bottom contour)</span></label>
-          <Chips values={opt.overhangs} value={s.overhang} onChange={(v) => update({ overhang: v })} label={lenChip(s.units)} />
+        <div className={"field" + (fieldMissing("slab") ? " missing" : "")}>
+          <label>Select the supporting slab</label>
+          <Seg value={s.slab || ""} onChange={(v) => update({ slab: v }, "slab")}
+            options={[{ label: "Left slab", value: "left" }, { label: "Right slab", value: "right" }]} />
         </div>
 
         <div className="divider" />
@@ -136,6 +163,9 @@ export default function Calculator() {
           </div>
           <div className="hint" style={{ marginTop: 7 }}>Horizontal load one existing column / frame can carry.</div>
         </div>
+
+        <button type="button" className="btn primary view-loads" onClick={viewLoads}>View loads</button>
+        {showMissing && missingFields.length > 0 && <div className="missing-note">Select the highlighted fields before viewing load calculations.</div>}
 
         <label className="toggle-line">
           <input type="checkbox" checked={s.factored} onChange={(e) => update({ factored: e.target.checked })} />
@@ -158,12 +188,13 @@ export default function Calculator() {
                 <p className="title">{L.titleFor(s)}</p>
                 <p className="sub">
                   {(s.type === "wall" ? s.levels + (s.levels === 1 ? " attachment level" : " attachment levels") : "single attachment")}
-                  {" · span A = " + L.fmtLen(s.span, s.units) + " · overhang X = " + L.fmtLen(s.overhang, s.units)}
+                  {s.type === "wall" ? " · span A = " + L.fmtLen(s.span, s.units) : ""}
+                  {" · overhang X = " + L.fmtLen(s.overhang, s.units)}
                   {" · characteristic values in " + um.force + (s.factored ? " · factored" : "")}
                 </p>
               </div>
               <div className="spacer" />
-              {vd === "neutral" ? (
+              {loadsRequested && (vd === "neutral" ? (
                 <div className="verdict neutral"><span className="ico">▤</span>
                   <div>Governing column load<br /><span className="big">{L.fmtForce(gov, s.units)} {um.force}</span>{" "}
                     <span style={{ color: "var(--ink-faint)" }}>(factored)</span></div>
@@ -174,10 +205,10 @@ export default function Calculator() {
                     <span className="big">{L.fmtForce(gov, s.units)} {um.force}</span>{" "}
                     required vs {L.fmtForce(s.cap, s.units)} {um.force} capacity</div>
                 </div>
-              )}
+              ))}
             </div>
 
-            {s.type === "wall" && forceLevels.length > 0 && (
+            {loadsRequested && s.type === "wall" && forceLevels.length > 0 && (
               <div className="forcebar">
                 <div className="lab">Force level — attachment level taken at its maximum live load</div>
                 <Chips small values={forceLevels.map((f) => f.lvl)} value={s.force} onChange={(v) => update({ force: v })}
@@ -185,6 +216,7 @@ export default function Calculator() {
               </div>
             )}
 
+            {loadsRequested ? (
             <div className="scroller">
               <table className="loads">
                 <thead><tr>
@@ -207,8 +239,9 @@ export default function Calculator() {
                 </tbody>
               </table>
             </div>
+            ) : <div className="empty compact">Select the required inputs, then click View loads to see calculations.</div>}
 
-            <AcsDiagram a={s.span} x={s.overhang} height={s.height} zValues={zLevels(data, s)} />
+            <AcsDiagram a={s.span} x={s.overhang} height={s.height} zValues={zLevels(data, s)} showLoads={loadsRequested} supportingSlab={s.slab} extraColumns={s.type === "boulder"} />
             <Legend units={s.units} />
             <Notes data={data} s={s} um={um} />
           </>
