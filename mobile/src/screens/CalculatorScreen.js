@@ -179,6 +179,8 @@ export default function CalculatorScreen({ data, initialProject, onProjectChange
                 <View>
                   <AttachmentDiagram structureType={s.type} span={s.span} overhang={s.overhang} height={s.height} zValues={zLevels(data, s)}
                     levelForces={loadsRequested ? rows.slice(s.type === "boulder" ? 1 : 2).map((r) => L.factored(r.lLL ?? r.rLL, "ll", s, um)) : []} forceUnit={um.force}
+                    baseVerticalLL={loadsRequested && rows[0] ? L.factored(rows[0].rLL, "LL", s, um) : null}
+                    baseVerticalDL={loadsRequested && rows[0] ? L.factored(rows[0].rDL, "DL", s, um) : null}
                     initialBaseDetail={s.baseDetail || "CF-01"} initialLevelDetail={s.levelDetail || "CW-01"}
                     onSelectionChange={(selection) => setS((previous) => previous.baseDetail === selection.baseDetail && previous.levelDetail === selection.levelDetail ? previous : { ...previous, ...selection })} />
                 </View>
