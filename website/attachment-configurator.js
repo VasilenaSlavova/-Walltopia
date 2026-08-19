@@ -4,7 +4,7 @@
   var root = document.getElementById("attachment-config-root");
   var DETAIL_PATH = "manuals/attachment/details/";
   var ATTACHMENT_DRAFT_KEY = "walltopia.attachment.draft.v1";
-  var state = { type: "wall", slab: "solid-concrete-slab", baseDetailId: null, support: "concrete-wall", detail: null, input: { height: 12, levels: 3 }, levelForces: [], deadLevelForces: [], forceUnit: "kN", columnSlab: null, columnBaseDetail: null, showForces: true, selected: {}, view: { scale: 1, panX: 0, panY: 0 }, viewContext: null };
+  var state = { type: "wall", slab: "solid-concrete-slab", baseDetailId: null, support: "concrete-wall", detail: null, input: { height: 12, levels: 3 }, levelForces: [], deadLevelForces: [], forceUnit: "kN", baseForceLL: null, baseForceDL: null, columnSlab: null, columnBaseDetail: null, showForces: true, selected: {}, view: { scale: 1, panX: 0, panY: 0 }, viewContext: null };
   try {
     var attachmentDraft = JSON.parse(localStorage.getItem(ATTACHMENT_DRAFT_KEY) || "null");
     if (attachmentDraft && typeof attachmentDraft === "object") {
@@ -20,6 +20,8 @@
     state.detail = state.input.columnAttachmentDetail || null;
     state.levelForces = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.levelForces) || [];
     state.deadLevelForces = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.levelDeadForces) || [];
+    state.baseForceLL = window.WTCalculatorPayload.snapshot ? window.WTCalculatorPayload.snapshot.baseVerticalLL : null;
+    state.baseForceDL = window.WTCalculatorPayload.snapshot ? window.WTCalculatorPayload.snapshot.baseVerticalDL : null;
     state.forceUnit = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.unit) || state.forceUnit;
     state.columnSlab = state.input.columnSupportingSlab || null;
     state.columnBaseDetail = state.input.columnBaseDetail || null;
@@ -130,19 +132,13 @@
     wire();
   }
 
-  // Vasi #4.1: draw the chosen supporting slab where the reference green circle
-  // sits (bottom-centre, at the base of the middle column). No selection yet -> a
-  // green placeholder circle marks the spot.
-  function slabGlyphSvg(cx, cy, slab, interactive) {
-    // When a base detail is chosen the slab behaves like the red attachment
-    // points: hover shows the preview card, click opens the full detail (Vasi).
-    var gAttrs = interactive
-      ? ' class="acs-slab attachment-point" data-point="base" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Supporting slab base detail"'
-      : ' class="acs-slab"';
-    if (!slab) {
-      return '<g' + gAttrs + '><circle class="acs-slab-placeholder" cx="' + cx + '" cy="' + cy + '" r="12"/>'
-        + '<text class="acs-slab-label" x="' + cx + '" y="' + (cy - 18) + '" text-anchor="middle">Select the supporting slab</text></g>';
-    }
+  // Vasi #4.1: draw the chosen supporting slab at the base of the middle column.
+  // Vasi 19 Aug: the base itself is drawn as attachment point X0, exactly like
+  // X1..Xn. The old green placeholder circle and its "Select the supporting slab"
+  // caption sat on top of the A span dimension and smeared the drawing, so both
+  // are gone -- an unselected base simply shows the X0 point with no slab under it.
+  function slabGlyphSvg(cx, cy, slab) {
+    if (!slab) return "";
     var w = 92, h = 16, x = cx - w / 2, y = cy - 3;
     var body = '<rect class="acs-slab-body" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>';
     var fill = "";
@@ -154,9 +150,48 @@
       fill = '<path class="acs-slab-hatch" d="' + hs + '"/>';
     }
     var label = slab === "hollow" ? "Hollow panel slab" : "Solid concrete slab";
-    return '<g' + gAttrs + '>' + body + fill
-      + '<text class="acs-slab-label" x="' + cx + '" y="' + (cy - 16) + '" text-anchor="middle">' + label + '</text>'
-      + (interactive ? '<title>Supporting slab base detail · click to preview</title>' : '') + '</g>';
+    return '<g class="acs-slab">' + body + fill + '<title>' + label + '</title></g>';
+  }
+
+  // The X0 marker + its label, built from the same recipe as the X1..Xn markers.
+  function basePointSvg(cx, cy, interactive) {
+    var detail = interactive ? state.columnBaseDetail : null;
+    return '<circle class="acs-column-point' + (interactive ? ' attachment-point' : '') + '"'
+      + (interactive ? ' data-point="base" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Base attachment point X0 detail"' : '')
+      + ' cx="' + cx + '" cy="' + cy + '" r="8"><title>Attachment point X0'
+      + (detail ? ' \u00b7 ' + detail : '') + '</title></circle>'
+      + '<text class="acs-column-point-label" x="' + (cx + 18) + '" y="' + (cy - 20) + '">X0</text>';
+  }
+
+  // Vasi 19 Aug: show the vertical reactions at X0 next to the base point.
+  function baseReactionSvg(cx, cy) {
+    if (!state.showForces) return "";
+    var ll = Number(state.baseForceLL), dl = Number(state.baseForceDL);
+    if (!isFinite(ll) && !isFinite(dl)) return "";
+    // Sit clear of the Lx1 block (anchored left of the column) and of the A span
+    // dimension that runs along the ground -- that overlap is what Vasi flagged.
+    var textX = cx + 90, llY = cy - 64, dlY = llY + 17, ax = cx + 16;
+    var llText = "RZ0 LL" + (isFinite(ll) ? " = " + ll.toFixed(2) + " " + state.forceUnit : "");
+    var dlText = "RZ0 DL" + (isFinite(dl) ? " = " + dl.toFixed(2) + " " + state.forceUnit : "");
+    // Vertical reaction: down into the foundation, or up when the value is uplift.
+    var negative = isFinite(ll) && ll < 0;
+    var arrow = negative ? "M" + ax + " " + (cy - 12) + "v-30" : "M" + ax + " " + (cy - 42) + "v30";
+    return '<path class="acs-load-arrow is-ll" d="' + arrow + '" marker-end="url(#config-arrow-ll)"><title>RZ0 LL</title></path>'
+      + '<text class="acs-lx-label is-ll" x="' + textX + '" y="' + llY + '">' + llText + '</text>'
+      + '<text class="acs-lx-label is-dl" x="' + textX + '" y="' + dlY + '">' + dlText + '</text>';
+  }
+
+  // Vasi 19 Aug: when a parameter gets its concrete value the matching dimension
+  // label flashes red, so it is obvious what just changed. Keyed by label, so a
+  // first paint (nothing to compare against) stays quiet.
+  // A single input change can repaint the results more than once; hold the flag
+  // open for a moment so the repaint that survives still carries the flash.
+  var lastLabelText = {};
+  function flashClass(key, text) {
+    var entry = lastLabelText[key], now = Date.now();
+    if (!entry) { lastLabelText[key] = { text: text, until: 0 }; return ""; }
+    if (entry.text !== text) { entry.text = text; entry.until = now + 900; }
+    return now < entry.until ? " is-value-flash" : "";
   }
 
   function acsSvg(levels) {
@@ -181,6 +216,9 @@
     var levelYs = zValues.map(function (z) { return baseY - z * scaleZ; });
     var visualOnly = root && root.getAttribute("data-visual-only") === "true";
     var sel = state.selected || {};
+    var spanText = sel.span ? 'A = ' + v.a.toFixed(1) + ' m' : 'A';
+    var overhangText = sel.overhang ? 'X = ' + v.x.toFixed(1) + ' m' : 'X';
+    var heightText = sel.height ? 'H = ' + v.height.toFixed(0) + ' m' : 'H';
     var hasAttachmentDetail = !!selectedDetail();
     var circles = visualOnly ? "" : '<circle class="attachment-point base-point" data-point="base" cx="' + mid + '" cy="' + baseY + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Base attachment detail"/>';
     var beams = "", labels = "", dims = "", pointMarkers = "";
@@ -226,7 +264,8 @@
       var lower = i === 0 ? baseY : levelYs[i-1] - 12;
       dims += '<line class="acs-dim" x1="658" y1="' + dimY + '" x2="658" y2="' + lower + '"/>';
       dims += '<line class="acs-guide" x1="640" y1="' + dimY + '" x2="670" y2="' + dimY + '"/>';
-      dims += '<text class="acs-dim-label" x="674" y="' + ((dimY+lower)/2+4) + '">' + ((sel.height && (state.type === 'boulder' || sel.levels)) ? 'Z' + (i+1) + ' = ' + (i === 0 ? zValues[0] : zValues[i]-zValues[i-1]).toFixed(1) + ' m' : 'Z' + (i+1)) + '</text>';
+      var zText = (sel.height && (state.type === 'boulder' || sel.levels)) ? 'Z' + (i+1) + ' = ' + (i === 0 ? zValues[0] : zValues[i]-zValues[i-1]).toFixed(1) + ' m' : 'Z' + (i+1);
+      dims += '<text class="acs-dim-label' + flashClass('z' + (i+1), zText) + '" x="674" y="' + ((dimY+lower)/2+4) + '">' + zText + '</text>';
     });
     var contourTop = [[150,420],[270,435],[365,410],[460,428],[585,400]];
     var shift = Math.max(18, v.x * 24);
@@ -244,7 +283,9 @@
       ? '<g class="acs-extra-columns">'
         + '<line class="acs-extra-column" x1="' + leftBayX + '" y1="' + (topY + 8) + '" x2="' + leftBayX + '" y2="' + baseY + '"/>'
         + '<line class="acs-extra-column" x1="' + rightBayX + '" y1="' + (topY + 8) + '" x2="' + rightBayX + '" y2="' + baseY + '"/></g>'
-        + slabGlyphSvg(mid, baseY, state.columnSlab, !!(state.columnSlab && state.columnBaseDetail))
+        + slabGlyphSvg(mid, baseY, state.columnSlab)
+        + basePointSvg(mid, baseY, !!(state.columnSlab && state.columnBaseDetail))
+        + baseReactionSvg(mid, baseY)
       : '';
     return '<svg viewBox="0 0 900 550" role="img" aria-label="Interactive ACS geometry and attachment points">'
       + '<defs><marker id="config-arrow-ll" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="acs-ll-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="config-arrow-dl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="acs-dl-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="acs-tech-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="acs-tech-arrowhead" d="M0 0L10 5L0 10Z"/></marker></defs>'
@@ -256,10 +297,10 @@
       + '<polygon class="acs-contour" points="' + polygon + '"/><polyline class="acs-top-contour" points="' + contourTop.map(function(p){return p.join(",");}).join(" ") + '"/>'
       + '<g class="acs-contour-notes"><text class="acs-contour-label" x="78" y="510"><tspan x="78">Climbing surface</tspan><tspan class="is-strong" x="78" dy="14">bottom contour</tspan></text><path d="M145 493L132 458L' + contourTop[0][0] + ' ' + contourTop[0][1] + '" marker-end="url(#acs-tech-arrow)"/>'
       + '<text class="acs-contour-label" x="650" y="510"><tspan x="650">Climbing surface</tspan><tspan class="is-strong" x="650" dy="14">top contour</tspan></text><path d="M650 493L635 470L' + contourBottom[4][0] + ' ' + contourBottom[4][1] + '" marker-end="url(#acs-tech-arrow)"/></g>'
-      + '<g class="acs-span-on-wall"><line x1="' + (left+spanGap) + '" y1="' + (groundY(left+spanGap)-10) + '" x2="' + (mid-spanGap) + '" y2="' + (groundY(mid-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + ((left+mid)/2) + '" y="' + (groundY((left+mid)/2)-18) + '" text-anchor="middle">' + (sel.span ? 'A = ' + v.a.toFixed(1) + ' m' : 'A') + '</text>'
-      + '<line x1="' + (mid+spanGap) + '" y1="' + (groundY(mid+spanGap)-10) + '" x2="' + (right-spanGap) + '" y2="' + (groundY(right-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + ((mid+right)/2) + '" y="' + (groundY((mid+right)/2)-18) + '" text-anchor="middle">' + (sel.span ? 'A = ' + v.a.toFixed(1) + ' m' : 'A') + '</text><title>A — span between columns</title></g>'
-      + '<g class="acs-contour-dim"><line x1="' + contourDimTop[0] + '" y1="' + contourDimTop[1] + '" x2="' + contourDimBottom[0] + '" y2="' + contourDimBottom[1] + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + (contourDimBottom[0]+14) + '" y="' + ((contourDimTop[1]+contourDimBottom[1])/2+4) + '">' + (sel.overhang ? 'X = ' + v.x.toFixed(1) + ' m' : 'X') + '</text></g>'
-      + dims + '<line class="acs-dim" x1="760" y1="' + (topY-12) + '" x2="760" y2="' + baseY + '"/><text class="acs-dim-label" x="775" y="' + ((topY+baseY)/2) + '">' + (sel.height ? 'H = ' + v.height.toFixed(0) + ' m' : 'H') + '</text>'
+      + '<g class="acs-span-on-wall"><line x1="' + (left+spanGap) + '" y1="' + (groundY(left+spanGap)-10) + '" x2="' + (mid-spanGap) + '" y2="' + (groundY(mid-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text class="' + flashClass('spanL', spanText).slice(1) + '" x="' + ((left+mid)/2) + '" y="' + (groundY((left+mid)/2)-18) + '" text-anchor="middle">' + spanText + '</text>'
+      + '<line x1="' + (mid+spanGap) + '" y1="' + (groundY(mid+spanGap)-10) + '" x2="' + (right-spanGap) + '" y2="' + (groundY(right-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text class="' + flashClass('spanR', spanText).slice(1) + '" x="' + ((mid+right)/2) + '" y="' + (groundY((mid+right)/2)-18) + '" text-anchor="middle">' + spanText + '</text><title>A — span between columns</title></g>'
+      + '<g class="acs-contour-dim"><line x1="' + contourDimTop[0] + '" y1="' + contourDimTop[1] + '" x2="' + contourDimBottom[0] + '" y2="' + contourDimBottom[1] + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text class="' + flashClass('overhang', overhangText).slice(1) + '" x="' + (contourDimBottom[0]+14) + '" y="' + ((contourDimTop[1]+contourDimBottom[1])/2+4) + '">' + overhangText + '</text></g>'
+      + dims + '<line class="acs-dim" x1="760" y1="' + (topY-12) + '" x2="760" y2="' + baseY + '"/><text class="acs-dim-label' + flashClass('height', heightText) + '" x="775" y="' + ((topY+baseY)/2) + '">' + heightText + '</text>'
       + '<g class="acs-axis" transform="translate(820 410)"><path d="M0 0V-48" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L42-9" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L25 32" marker-end="url(#acs-tech-arrow)"/><text x="-7" y="-55">Z</text><text x="48" y="-7">Y</text><text x="28" y="43">X</text></g>'
       + (hasAttachmentDetail ? '<text class="acs-caption" x="28" y="30">Hover, focus or click a red point to preview its attachment detail</text>' : '')
       + slabAndColumns + circles + '</svg>';

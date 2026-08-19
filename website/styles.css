@@ -425,14 +425,12 @@ p { text-align: justify; }
 .single-point-section[hidden] { display: none; }
 .single-point-section { margin-top: 18px; }
 .column-point-section { margin-top: 18px; padding-top: 0; }
-.column-point-section > .single-point-heading,
 .column-point-body,
 .column-capacity { width: 100%; margin-inline: 0; }
 .single-capacity.column-capacity { margin-top: 0; }
 .column-point-body { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: auto 430px; gap: 18px 24px; align-items: start; min-height: 0; }
 .column-point-table-wrap { grid-column: 1; grid-row: 1; width: 100%; }
 .single-conditions.column-conditions { grid-column: 2; grid-row: 1; align-self: start; width: 100%; margin-top: 0; padding-top: 8px; border-top: 3px solid #fff; background: #fff; }
-.column-conditions .single-section-label { display: flex; align-items: flex-start; justify-content: center; min-height: 59px; margin-bottom: 0; padding-top: 7.67px; border-bottom: 3px solid #fff; text-align: center; }
 .column-point-body > #attachment-config-root { position: relative; grid-column: 1 / -1; grid-row: 2; width: 100%; min-width: 0; height: 430px; min-height: 430px; margin-top: 0; }
 .column-point-body > #attachment-config-root > .attachment-visual-layout { position: absolute; inset: 0; height: auto; margin-top: 0; }
 .column-point-body > #attachment-config-root .attachment-acs { height: 100%; }
@@ -466,10 +464,6 @@ p { text-align: justify; }
 .column-capacity-point em { font-style: normal; font-weight: 800; }
 .column-capacity-point em.is-ok { color: #16844b; }
 .column-capacity-point em.is-bad { color: var(--accent); }
-.single-point-heading { display: flex; align-items: flex-start; gap: 12px; padding: 16px 0 14px; }
-.single-point-heading h2 { margin: -3px 0 3px; color: var(--ink); font-family: var(--display); font-size: 18px; font-weight: 900; letter-spacing: -.25px; }
-.single-point-heading .result-option-label { display: inline-block; margin-right: 7px; padding: 5px 7px 4px; background: var(--accent); color: #fff; font-size: 10px; line-height: 1; letter-spacing: .45px; text-transform: uppercase; vertical-align: 3px; }
-.single-point-heading p { margin: 0; color: var(--ink-faint); font-size: 11.5px; line-height: 1.45; }
 .single-point-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; align-items: stretch; }
 .single-point-grid > * { min-width: 0; }
 .single-point-left { min-width: 0; }
@@ -502,8 +496,7 @@ p { text-align: justify; }
 .single-capacity { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
 .single-section-label { margin-bottom: 10px; color: var(--accent); font-family: var(--display); font-size: 11px; font-weight: 900; letter-spacing: .35px; text-transform: uppercase; }
 .single-section-label span { color: var(--ink-faint); font-family: var(--sans); font-weight: 400; letter-spacing: 0; text-transform: none; }
-.single-section-label-with-link, .column-conditions .single-section-label-with-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; text-align: left; }
-.column-conditions .single-section-label-with-link { align-items: baseline; padding-top: 9px; }
+.single-section-label-with-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; text-align: left; }
 .single-section-label-with-link a { color: var(--accent); font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; white-space: nowrap; }
 @media (max-width: 560px) {
   .single-section-label-with-link, .column-conditions .single-section-label-with-link { align-items: flex-start; flex-direction: column; gap: 5px; }
@@ -562,7 +555,6 @@ p { text-align: justify; }
   .column-point-body { display: block; min-height: 0; }
   .single-capacity.column-capacity { margin-top: 22px; }
   .single-conditions.column-conditions { align-self: auto; margin-top: 18px; padding-top: 0; border-top: 0; }
-  .column-conditions .single-section-label { display: block; min-height: 0; margin-bottom: 10px; padding-top: 0; border-bottom: 0; }
   .column-point-body > #attachment-config-root { position: static; height: auto; min-height: 0; margin-top: 18px; }
   .column-point-body > #attachment-config-root > .attachment-visual-layout { position: relative; inset: auto; height: auto; }
   .column-point-body > #attachment-config-root .attachment-acs { height: auto; }
@@ -666,7 +658,6 @@ table.loads .grp-ll { color: var(--ll); }
   .single-slab-options { width: 100%; margin-inline: 0; }
   .column-point-body { display: block; min-height: 0; }
   .single-conditions.column-conditions { margin-top: 18px; padding-top: 0; border-top: 0; }
-  .column-conditions .single-section-label { display: block; min-height: 0; margin-bottom: 10px; padding-top: 0; border-bottom: 0; text-align: left; }
   .column-point-body > #attachment-config-root { position: static; height: auto; min-height: 0; margin-top: 18px; }
   .column-point-body > #attachment-config-root > .attachment-visual-layout { position: relative; inset: auto; height: auto; }
   .column-point-body > #attachment-config-root .attachment-acs { height: auto; }
@@ -1425,6 +1416,12 @@ body.hide-transcripts .page-figure details { display: none; }
 .attachment-acs .acs-full-beam { stroke: #2463eb; stroke-width: 4; }
 .attachment-acs .acs-column-point { fill: #fff; stroke: var(--accent); stroke-width: 4; pointer-events: none; }
 .attachment-acs .acs-column-point.attachment-point { pointer-events: all; cursor: pointer; }
+/* Vasi 19 Aug: flash a dimension label red when its value changes, so it is
+   obvious which parameter just landed on the drawing. The implicit 100% keyframe
+   returns each label to its own resting colour. */
+@keyframes acs-value-flash { 0%, 60% { fill: #ec1c24; } 100% { fill: #ec1c24; } }
+.attachment-acs .is-value-flash, .schematic .is-value-flash { animation: acs-value-flash 1.1s ease-out 1; }
+@media (prefers-reduced-motion: reduce) { .attachment-acs .is-value-flash, .schematic .is-value-flash { animation: none; } }
 .attachment-acs .acs-column-point-label { fill: #64748b; font-family: var(--sans); font-size: 13px; font-weight: 800; pointer-events: none; }
 .attachment-acs .acs-load-arrow { fill: none; stroke-width: 2.5; stroke-dasharray: 6 5; }
 .attachment-acs .acs-load-arrow.is-ll { stroke: var(--accent); }
@@ -1439,22 +1436,9 @@ body.hide-transcripts .page-figure details { display: none; }
 .attachment-acs .acs-lx-label.is-dl { fill: #111; }
 /* Vasi #4.1 / #5: supporting-slab glyph + green extra columns on the Option 2 drawing */
 .attachment-acs .acs-extra-column { stroke: #22a06b; stroke-width: 4; stroke-linecap: round; opacity: .9; }
-.attachment-acs .acs-slab-placeholder { fill: rgba(34,160,107,.14); stroke: #22a06b; stroke-width: 3; }
 .attachment-acs .acs-slab-body { fill: rgba(34,160,107,.12); stroke: #22a06b; stroke-width: 3; }
 .attachment-acs .acs-slab-core { fill: #fff; stroke: #22a06b; stroke-width: 1.6; }
 .attachment-acs .acs-slab-hatch { stroke: #22a06b; stroke-width: 1.4; fill: none; }
-.attachment-acs .acs-slab-label { fill: #1a7f56; font-family: var(--sans); font-size: 12px; font-weight: 800; }
-.attachment-acs .acs-slab-label { paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
-/* The slab is interactive like the red points; beat the blanket pointer-events:none. */
-.attachment-acs .acs-slab.attachment-point { cursor: pointer; }
-.attachment-acs .acs-slab.attachment-point rect,
-.attachment-acs .acs-slab.attachment-point circle,
-.attachment-acs .acs-slab.attachment-point path,
-.attachment-acs .acs-slab.attachment-point text { pointer-events: all; cursor: pointer; }
-.attachment-acs .acs-slab.attachment-point:hover .acs-slab-body,
-.attachment-acs .acs-slab.attachment-point:focus-visible .acs-slab-body,
-.attachment-acs .acs-slab.attachment-point:hover .acs-slab-placeholder,
-.attachment-acs .acs-slab.attachment-point:focus-visible .acs-slab-placeholder { stroke-width: 4.6; }
 .attachment-acs .acs-contour { fill: #dbe7fb; stroke: #2463eb; stroke-width: 2; }
 .attachment-acs .acs-top-contour { fill: none; stroke: #2463eb; stroke-width: 2; }
 .attachment-acs .acs-dim { stroke: #64748b; stroke-width: 1.2; }
@@ -1556,8 +1540,6 @@ body.attachment-modal-open { overflow: hidden; }
   .results { padding: 16px 18px; }
   .result-solution-tabs { margin-top: 20px; }
   .result-solution-tabs button { min-height: 46px; padding: 10px 12px; font-size: 10.5px; }
-  .single-point-heading { padding-block: 14px 12px; }
-  .single-point-heading h2 { font-size: 17px; }
   .single-point-grid .schematic { height: 600px; min-height: 600px; }
   .single-point-grid.is-three-levels .schematic { height: 660px; min-height: 660px; }
   .single-point-left .attachment-detail-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
