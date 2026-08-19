@@ -23,7 +23,7 @@ const details = [
   { id: "MW-02", group: "masonry", title: "Masonry wall · Detail 02", file: "masonry-wall-01.png" },
 ];
 
-export default function AttachmentDiagram({ structureType = "wall", span = 6, overhang = 1, height = 12, zValues = [4, 8, 11.5], levelForces = [], forceUnit = "kN", baseVerticalLL = null, baseVerticalDL = null, initialBaseDetail = "CF-01", initialLevelDetail = "CW-01", onSelectionChange }) {
+export default function AttachmentDiagram({ structureType = "wall", span = 6, overhang = 1, height = 12, zValues = [4, 8, 11.5], levelForces = [], forceUnit = "kN", initialBaseDetail = "CF-01", initialLevelDetail = "CW-01", onSelectionChange }) {
   const [slab, setSlab] = useState("solid");
   const [support, setSupport] = useState("concrete");
   const [base, setBase] = useState(initialBaseDetail);
@@ -75,12 +75,12 @@ export default function AttachmentDiagram({ structureType = "wall", span = 6, ov
 
     <Pressable onPress={openLargeView} style={largeButton}><Text style={largeButtonText}>Open large horizontal view ↗</Text></Pressable>
     <View style={{ aspectRatio: 900 / 550, backgroundColor: C.surface2, borderColor: C.line, borderWidth: 1 }}>
-      <WebAttachmentSvg structureType={structureType} span={span} overhang={overhang} height={height} zValues={zValues} levelForces={levelForces} forceUnit={forceUnit} baseVerticalLL={baseVerticalLL} baseVerticalDL={baseVerticalDL} baseDetail={baseDetail} levelDetail={levelDetail} openDetail={setOpen} />
+      <WebAttachmentSvg structureType={structureType} span={span} overhang={overhang} height={height} zValues={zValues} levelForces={levelForces} forceUnit={forceUnit} baseDetail={baseDetail} levelDetail={levelDetail} openDetail={setOpen} />
     </View>
     <Modal visible={largeView} animationType="fade" onRequestClose={closeLargeView} supportedOrientations={["landscape-left","landscape-right"]}>
       <View style={largeScreen}>
         <View style={largeHeader}><View><Text style={largeKicker}>2D technical schematic</Text><Text style={largeHint}>Pinch to zoom · drag to pan · tap a red point</Text></View><Pressable onPress={closeLargeView} style={largeClose}><Text style={largeCloseText}>Close ×</Text></Pressable></View>
-        <View style={{ flex:1, backgroundColor:C.surface2 }}><ZoomableSchematic onSchematicTap={hitDiagramPoint}><WebAttachmentSvg structureType={structureType} span={span} overhang={overhang} height={height} zValues={zValues} levelForces={levelForces} forceUnit={forceUnit} baseVerticalLL={baseVerticalLL} baseVerticalDL={baseVerticalDL} baseDetail={baseDetail} levelDetail={levelDetail} openDetail={setOpen} /></ZoomableSchematic></View>
+        <View style={{ flex:1, backgroundColor:C.surface2 }}><ZoomableSchematic onSchematicTap={hitDiagramPoint}><WebAttachmentSvg structureType={structureType} span={span} overhang={overhang} height={height} zValues={zValues} levelForces={levelForces} forceUnit={forceUnit} baseDetail={baseDetail} levelDetail={levelDetail} openDetail={setOpen} /></ZoomableSchematic></View>
         {open ? <View style={embeddedBackdrop}><DetailPanel detail={open} close={() => setOpen(null)} /></View> : null}
       </View>
     </Modal>
@@ -140,7 +140,7 @@ function ZoomableSchematic({ children, onSchematicTap }) {
   </View>;
 }
 
-function WebAttachmentSvg({ structureType, span, overhang, height, zValues, levelForces, forceUnit, baseVerticalLL, baseVerticalDL, baseDetail, levelDetail, openDetail }) {
+function WebAttachmentSvg({ structureType, span, overhang, height, zValues, levelForces, forceUnit, baseDetail, levelDetail, openDetail }) {
   const left = 120, right = 610, mid = 365, baseY = 390;
   const scaleZ = structureType === "boulder" ? 52 : 20;
   const topY = baseY - height * scaleZ;
@@ -194,18 +194,6 @@ function WebAttachmentSvg({ structureType, span, overhang, height, zValues, leve
     <Line x1="760" y1={topY-12} x2="760" y2={baseY} stroke={C.inkFaint} strokeWidth="1.1"/><SvgText x="775" y={(topY+baseY)/2} fill={C.inkFaint} fontFamily={FB[400]} fontSize="10">{`H = ${height.toFixed(0)} m`}</SvgText>
     <G transform="translate(820 410)"><Path d="M0 0V-48M0 0L42-9M0 0L25 32" fill="none" stroke={C.navy} strokeWidth="2"/><SvgText x="-7" y="-55" fill={C.navy} fontFamily={FB[700]} fontSize="10">Z</SvgText><SvgText x="48" y="-7" fill={C.navy} fontFamily={FB[700]} fontSize="10">Y</SvgText><SvgText x="28" y="43" fill={C.navy} fontFamily={FB[700]} fontSize="10">X</SvgText></G>
     <SvgText x="28" y="30" fill={C.inkFaint} fontFamily={FB[400]} fontSize="10">Tap a red point to preview its attachment detail</SvgText>
-    {Number.isFinite(Number(baseVerticalLL)) || Number.isFinite(Number(baseVerticalDL)) ? (() => {
-      // Vasi 19 Aug: vertical reactions at X0. Placed clear of the Lx1 block and
-      // of the A span dimension along the ground, same as the web drawing.
-      const ll = Number(baseVerticalLL), dl = Number(baseVerticalDL);
-      const up = Number.isFinite(ll) && ll < 0;
-      const ax = mid + 16, textX = mid + 90, llY = baseY - 64;
-      return <G>
-        <Path d={up ? `M${ax} ${baseY-12}v-30` : `M${ax} ${baseY-42}v30`} fill="none" stroke={up ? C.navy : C.red} strokeWidth="2.5" strokeDasharray="6 5" markerEnd={up ? "url(#negativeArrow)" : "url(#loadArrow)"}/>
-        <SvgText x={textX} y={llY} fill={up ? C.navy : C.red} fontFamily={FB[700]} fontSize="14">{`RZ0 LL${Number.isFinite(ll) ? ` = ${ll.toFixed(2)} ${forceUnit}` : ""}`}</SvgText>
-        <SvgText x={textX} y={llY+17} fill={C.navy} fontFamily={FB[700]} fontSize="14">{`RZ0 DL${Number.isFinite(dl) ? ` = ${dl.toFixed(2)} ${forceUnit}` : ""}`}</SvgText>
-      </G>;
-    })() : null}
     <G onPress={() => openDetail({...baseDetail,title:`Base connection · ${baseDetail.title}`})}><Circle cx={mid} cy={baseY} r="32" fill="rgba(255,255,255,0.001)" onPress={() => openDetail({...baseDetail,title:`Base connection · ${baseDetail.title}`})}/><Circle cx={mid} cy={baseY} r="8" fill="#fff" stroke={C.red} strokeWidth="4" onPress={() => openDetail({...baseDetail,title:`Base connection · ${baseDetail.title}`})}/></G>
   </Svg>;
 }
