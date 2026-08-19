@@ -801,7 +801,7 @@
   // Title reflects the current selections; #3.1 fills the values in as they are chosen.
   function resultHeadHtml() {
     var u = U();
-    var typeLabel = selectedInputs.type ? (S.type === "wall" ? "Climbing wall" : "Boulder wall") : "New Project";
+    var typeLabel = selectedInputs.type ? (S.type === "wall" ? "Climbing wall" : "Boulder wall") : "Preliminary loads";
     var title = typeLabel + (selectedInputs.height ? " " + fmtLen(S.height) : "");
     var bits = [];
     if (S.type === "wall" && selectedInputs.levels) bits.push(S.levels + (S.levels === 1 ? " attachment level" : " attachment levels"));
@@ -810,6 +810,16 @@
     if (selectedInputs.overhang) bits.push("overhang X = " + fmtLen(S.overhang));
     bits.push((S.factored ? "factored" : "characteristic") + " values in " + u.force);
     return '<div class="results-head"><div><p class="title">' + title + '</p><p class="sub">' + bits.join(" \u00b7 ") + '</p></div></div>';
+  }
+
+  // Shown in place of the load table while the drawing is already on screen.
+  function loadsLockedHtml() {
+    var missing = missingInputs();
+    return '<div class="loads-locked">'
+      + '<strong>' + (missing.length ? "Some inputs are still open" : "Loads are ready") + '</strong>'
+      + '<span>' + (missing.length
+          ? "Choose " + missing.map(function (k) { return FIELD_LABELS[k]; }).join(", ") + ", then press <b>View loads</b>."
+          : "Press <b>View loads</b> to calculate this configuration.") + '</span></div>';
   }
 
   function renderResults() {
@@ -843,19 +853,16 @@
     var columnValues = showTables ? columnPointValues() : null;
     var singleActive = S.attachmentSolution === "single";
     var beamsActive = S.attachmentSolution === "beams";
-    // Vasi 19 Aug: the "some inputs are still open" placeholder is redundant --
-    // the drawing already stands on its own until View loads is pressed. Only the
-    // real "no table entry" error still occupies the table slot.
-    var lockedNote = revealed && noEntry
-      ? '<div class="loads-locked"><strong>No table entry for this combination</strong><span>Pick a different span or overhang.</span></div>'
-      : '';
+    var lockedNote = revealed
+      ? (noEntry ? '<div class="loads-locked"><strong>No table entry for this combination</strong><span>Pick a different span or overhang.</span></div>' : '')
+      : loadsLockedHtml();
 
     var html = '<div class="results-reveal">' + resultHeadHtml() + resultOptionTabsHtml()
-      + '<section class="single-point-section" data-result-section="single"' + (singleActive ? '' : ' hidden') + '>'
+      + '<section class="single-point-section" data-result-section="single"' + (singleActive ? '' : ' hidden') + '><div class="single-point-heading"><div><h2>Direct Single-Point Attachment</h2><p>The climbing wall is connected directly to the existing structure at individual attachment points.</p></div></div>'
       + '<div class="single-point-grid' + (Number(S.levels) >= 3 ? ' is-three-levels' : '') + '"><div class="single-point-left">'
       + (showTables ? singlePointTableHtml(values) : lockedNote) + singlePointConditionsHtml() + '</div>' + schematicPanelHtml() + '</div>'
       + (showTables ? singleCapacityHtml() + notesHtml() : '') + '</section>'
-      + '<section class="single-point-section column-point-section" data-result-section="beams"' + (beamsActive ? '' : ' hidden') + '>'
+      + '<section class="single-point-section column-point-section" data-result-section="beams"' + (beamsActive ? '' : ' hidden') + '><div class="single-point-heading"><div><h2>Walltopia Support Beams Between Building Columns</h2><p>Walltopia support beams are added between the existing building columns, and the climbing wall is attached to the beams.</p></div></div>'
       + '<div class="column-point-body">' + (showTables ? columnPointTableHtml(columnValues) : lockedNote)
       + columnPointConditionsHtml() + '<div id="attachment-config-root" data-visual-only="true"></div></div>'
       + (showTables ? columnCapacityHtml() + notesHtml() : '') + '</section></div>';
@@ -1118,18 +1125,6 @@
     applyView();
   }
 
-  // Vasi 19 Aug: flash a dimension label red when its value changes, so it is
-  // obvious what just landed on the drawing. First paint stays quiet.
-  // A single input change can repaint the results more than once; hold the flag
-  // open for a moment so the repaint that survives still carries the flash.
-  var lastSchematicLabel = {};
-  function flashClass(key, text) {
-    var entry = lastSchematicLabel[key], now = Date.now();
-    if (!entry) { lastSchematicLabel[key] = { text: text, until: 0 }; return ""; }
-    if (entry.text !== text) { entry.text = text; entry.until = now + 900; }
-    return now < entry.until ? " is-value-flash" : "";
-  }
-
   function schematicSvg() {
     var wallHeight = Number(S.height) || 12;
     var overhang = Number(S.overhang) || 0;
@@ -1176,8 +1171,6 @@
     }
     function reactionText(key, value) { return key + " = " + fmtForce(value) + " " + U().force; }
     var showForces = loadsVisible();  // Vasi #2.1: load numbers wait for View loads
-    var overhangText = selectedInputs.overhang ? 'X = ' + dimValue(overhang) : 'X';
-    var heightText = selectedInputs.height ? 'Climbing wall height = ' + dimValue(wallHeight) : 'Climbing wall height';
     var attachments = "", attachmentPoints = "", attachmentPointLabels = "", forces = "", heightDims = "";
     function horizontalReaction(key, value, y, kind, labelY) {
       var negative = value < 0, zero = Math.abs(value) < .000001;
@@ -1186,14 +1179,13 @@
     }
     heights.forEach(function (z, i) {
       var n = i + 1, x = xAt(z), y = yAt(z), dimX = 142 - i * 18;
-      var zText = (selectedInputs.height && (S.type === "boulder" || selectedInputs.levels)) ? 'Z' + n + ' = ' + dimValue(z) : 'Z' + n;
       var rx = reaction("RX" + n);
       attachments += '<line class="side-support" x1="' + attachmentPlaneX + '" y1="' + y + '" x2="' + x + '" y2="' + y + '"/><path class="side-anchor" d="M' + attachmentPlaneX + ' ' + (y-9) + 'v18l10-9z"/>';
       attachmentPoints += '<circle class="side-attachment-detail-point' + (singlePointSelection.attachmentDetail ? '' : ' is-hidden') + '" data-side-level="' + n + '" cx="' + attachmentPlaneX + '" cy="' + y + '" r="7" tabindex="' + (singlePointSelection.attachmentDetail ? '0' : '-1') + '" role="button"><title>Attachment point X' + n + '</title></circle>';
       attachmentPointLabels += '<text class="side-point-label" x="' + (attachmentPlaneX + 12) + '" y="' + (y - 11) + '">X' + n + '</text>';
       if (showForces) forces += horizontalReaction('RX' + n, rx.ll, y - 8, 'll', y - 15)
         + horizontalReaction('RX' + n, rx.dl, y + 8, 'dl', y + 22);
-      heightDims += '<line class="side-extension" x1="' + dimX + '" y1="' + y + '" x2="' + attachmentPlaneX + '" y2="' + y + '"/><line class="side-dimension" x1="' + dimX + '" y1="' + groundY + '" x2="' + dimX + '" y2="' + y + '"/><path class="side-tick" d="M' + (dimX-5) + ' ' + (groundY+5) + 'l10-10M' + (dimX-5) + ' ' + (y+5) + 'l10-10"/><text class="side-dim-label' + flashClass('z' + n, zText) + '" x="' + (dimX-8) + '" y="' + ((groundY+y)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (dimX-8) + ' ' + ((groundY+y)/2) + ')">' + zText + '</text>';
+      heightDims += '<line class="side-extension" x1="' + dimX + '" y1="' + y + '" x2="' + attachmentPlaneX + '" y2="' + y + '"/><line class="side-dimension" x1="' + dimX + '" y1="' + groundY + '" x2="' + dimX + '" y2="' + y + '"/><path class="side-tick" d="M' + (dimX-5) + ' ' + (groundY+5) + 'l10-10M' + (dimX-5) + ' ' + (y+5) + 'l10-10"/><text class="side-dim-label" x="' + (dimX-8) + '" y="' + ((groundY+y)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (dimX-8) + ' ' + ((groundY+y)/2) + ')">' + ((selectedInputs.height && (S.type === "boulder" || selectedInputs.levels)) ? 'Z' + n + ' = ' + dimValue(z) : 'Z' + n) + '</text>';
     });
     var rx0 = reaction("RX0"), rz0 = reaction("RZ0");
     function baseHorizontal(value, y, kind, labelY) {
@@ -1215,8 +1207,8 @@
       + '<line class="side-attachment-plane" x1="' + attachmentPlaneX + '" y1="' + topY + '" x2="' + attachmentPlaneX + '" y2="' + groundY + '"/>'
       + '<line class="side-surface" x1="' + baseX + '" y1="' + groundY + '" x2="' + topX + '" y2="' + topY + '"/>'
       + attachments + forces + heightDims
-      + '<line class="side-extension" x1="' + attachmentPlaneX + '" y1="' + topY + '" x2="' + attachmentPlaneX + '" y2="30"/><line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + topX + '" y2="30"/><line class="side-dimension" x1="' + attachmentPlaneX + '" y1="30" x2="' + topX + '" y2="30"/><path class="side-tick" d="M' + (attachmentPlaneX-5) + ' 35l10-10M' + (topX-5) + ' 35l10-10"/><text class="side-overhang-label' + flashClass('overhang', overhangText) + '" x="' + ((attachmentPlaneX+topX)/2) + '" y="20" text-anchor="middle">' + overhangText + ' (overhang)</text>'
-      + '<line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + wallDimX + '" y2="' + topY + '"/><line class="side-dimension" x1="' + wallDimX + '" y1="' + groundY + '" x2="' + wallDimX + '" y2="' + topY + '"/><path class="side-tick" d="M' + (wallDimX-5) + ' ' + (groundY+5) + 'l10-10M' + (wallDimX-5) + ' ' + (topY+5) + 'l10-10"/><text class="side-wall-height' + flashClass('height', heightText) + '" x="' + (wallDimX+15) + '" y="' + ((groundY+topY)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (wallDimX+15) + ' ' + ((groundY+topY)/2) + ')">' + heightText + '</text>'
+      + '<line class="side-extension" x1="' + attachmentPlaneX + '" y1="' + topY + '" x2="' + attachmentPlaneX + '" y2="30"/><line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + topX + '" y2="30"/><line class="side-dimension" x1="' + attachmentPlaneX + '" y1="30" x2="' + topX + '" y2="30"/><path class="side-tick" d="M' + (attachmentPlaneX-5) + ' 35l10-10M' + (topX-5) + ' 35l10-10"/><text class="side-overhang-label" x="' + ((attachmentPlaneX+topX)/2) + '" y="20" text-anchor="middle">' + (selectedInputs.overhang ? 'X = ' + dimValue(overhang) : 'X') + ' (overhang)</text>'
+      + '<line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + wallDimX + '" y2="' + topY + '"/><line class="side-dimension" x1="' + wallDimX + '" y1="' + groundY + '" x2="' + wallDimX + '" y2="' + topY + '"/><path class="side-tick" d="M' + (wallDimX-5) + ' ' + (groundY+5) + 'l10-10M' + (wallDimX-5) + ' ' + (topY+5) + 'l10-10"/><text class="side-wall-height" x="' + (wallDimX+15) + '" y="' + ((groundY+topY)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (wallDimX+15) + ' ' + ((groundY+topY)/2) + ')">' + (selectedInputs.height ? 'Climbing wall height = ' + dimValue(wallHeight) : 'Climbing wall height') + '</text>'
       + '<text class="side-surface-label" x="' + surfaceLabelX + '" y="' + surfaceLabelY + '" text-anchor="middle" transform="rotate(' + surfaceAngle + ' ' + surfaceLabelX + ' ' + surfaceLabelY + ')">Climbing surface</text>'
       + (showForces && S.type === "wall" ? baseHorizontal(rx0.ll, 446, 'll', 488) + baseHorizontal(rx0.dl, 462, 'dl', 504) : "")
       + (showForces ? baseVertical(rz0.ll, 197, 'll', 340) + baseVertical(rz0.dl, 213, 'dl', 354) : "")
@@ -1320,12 +1312,7 @@
         }
       }
     }
-    // Vasi 19 Aug: the drawing also labels the vertical base reactions at X0.
-    var baseRow = selectedScenarioRow();
-    return { title: title, unit: u.force, governing: Math.round(gov.value * 100) / 100, verdict: verdict,
-      levelForces: levelForces, levelDeadForces: levelDeadForces,
-      baseVerticalLL: baseRow ? pick(baseRow, "RZ0LL") : null,
-      baseVerticalDL: baseRow ? pick(baseRow, "RZ0DL") : null };
+    return { title: title, unit: u.force, governing: Math.round(gov.value * 100) / 100, verdict: verdict, levelForces: levelForces, levelDeadForces: levelDeadForces };
   }
 
   var projectRoot = function () { return document.getElementById("project-root"); };
