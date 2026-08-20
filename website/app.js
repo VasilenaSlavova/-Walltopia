@@ -150,7 +150,7 @@
       var b = document.createElement("button");
       b.type = "button"; b.textContent = it.label;
       b.setAttribute("aria-pressed", String(it.value === cur));
-      b.onclick = function () { mobileResultsAutoScrollEnabled = true; onPick(it.value); };
+      b.onclick = function () { mobileResultsAutoScrollEnabled = true; S.loadsRequested = false; onPick(it.value); };
       el.appendChild(b);
     });
   }
@@ -161,7 +161,7 @@
       var b = document.createElement("button");
       b.type = "button"; b.textContent = labelFn ? labelFn(v) : v;
       b.setAttribute("aria-pressed", String(v === cur));
-      b.onclick = function () { mobileResultsAutoScrollEnabled = true; onPick(v); };
+      b.onclick = function () { mobileResultsAutoScrollEnabled = true; S.loadsRequested = false; onPick(v); };
       el.appendChild(b);
     });
   }
@@ -819,6 +819,7 @@
         try { sessionStorage.setItem(CALCULATOR_VIEW_KEY, "calculator"); } catch (error) {}
         S.attachmentSolution = button.getAttribute("data-result-option");
         S.solutionPicked = true;
+        S.loadsRequested = false;
         try { localStorage.setItem(CALCULATOR_SOLUTION_KEY, S.attachmentSolution); } catch (error) {}
         showMissingFlag = false;
         // The inputs panel appears now (Vasi #1) and which fields are required
@@ -1374,10 +1375,10 @@
     S.sideCapacity = inp.sideCapacity !== undefined && inp.sideCapacity !== null ? Number(inp.sideCapacity) : null;
     S.columnCapacities = inp.columnCapacities && typeof inp.columnCapacities === "object" ? inp.columnCapacities : {};
     S.attachmentSolution = inp.attachmentSolution === "beams" ? "beams" : "single";
-    // A restored draft or project already carries a decision; only a fresh
-    // calculator starts with the results closed.
+    // Restoring inputs must never reveal results. VIEW LOADS is the only action
+    // allowed to open the load tables and result diagrams.
     S.solutionPicked = !!inp.solutionPicked;
-    S.loadsRequested = inp.loadsRequested !== undefined && inp.loadsRequested !== null ? !!inp.loadsRequested : !!inp.solutionPicked;
+    S.loadsRequested = false;
     if (inp.supportingSlab) singlePointSelection.slab = inp.supportingSlab;
     if (inp.baseDetail) singlePointSelection.detail = inp.baseDetail;
     if (inp.supportingStructure) singlePointSelection.support = inp.supportingStructure;
@@ -1618,12 +1619,10 @@
       var res = await window.WTApi.getProject(id);
       P = res.project;
       applyInput(P.input, "project");
-      // Opening a saved project is not entering a new calculation: the design was
-      // already decided when it was saved, so the results open straight away. The
-      // server also drops `solutionPicked` (it is not in the stored-input
-      // whitelist), so it cannot be recovered from the record itself.
+      // The saved design restores its option and inputs, but the results remain
+      // closed until the user explicitly presses VIEW LOADS.
       S.solutionPicked = true;
-      S.loadsRequested = true;
+      S.loadsRequested = false;
       clampAndRender();
       renderProjectBar();
       if (new URLSearchParams(location.search).get("export") === "pdf") {
@@ -1660,7 +1659,7 @@
     } catch (error) {}
   }
   document.getElementById("chk-factored").addEventListener("change", function (e) {
-    S.factored = e.target.checked; renderResults();
+    S.factored = e.target.checked; S.loadsRequested = false; renderResults();
   });
   var viewLoadsButton = document.getElementById("view-loads");
   if (viewLoadsButton) viewLoadsButton.addEventListener("click", function () {
