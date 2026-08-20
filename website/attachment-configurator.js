@@ -441,12 +441,6 @@
   function showPoint(point, level, clientX, clientY) {
     var d = point === "base" ? baseDetail() : selectedDetail();
     var preview = root.querySelector("#attachment-preview");
-    preview.addEventListener("click", function (e) {
-      var trigger = e.target.closest("[data-full-detail]");
-      if (!trigger) return;
-      var detail = details.find(function (item) { return item.id === trigger.getAttribute("data-full-detail"); });
-      if (detail) openDetailModal(detail);
-    });
     var layout = root.querySelector("#attachment-visual-layout");
     preview.innerHTML = previewHtml(d, point === "base" ? "Base point" : "Attachment level " + level);
     preview.hidden = false;
@@ -462,6 +456,13 @@
     preview.style.top = top + "px";
   }
   function wire() {
+    var finePointer = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    // Mobile Safari can retain a synthetic :hover/:focus state after a tap.
+    // List previews are desktop-only; on touch, Select and View are explicit actions.
+    if (!finePointer) {
+      hideListPreview();
+      root.addEventListener("touchstart", hideListPreview, { passive: true });
+    }
     root.querySelectorAll("[data-slab]").forEach(function (b) { b.onclick = function () { state.slab = b.getAttribute("data-slab"); state.baseDetailId = null; render(); }; });
     root.querySelectorAll("[data-base-detail]").forEach(function (b) { b.onclick = function () { state.baseDetailId = b.getAttribute("data-base-detail"); render(); }; });
     root.querySelectorAll("[data-support]").forEach(function (b) { b.onclick = function () { state.support = b.getAttribute("data-support"); state.detail = null; render(); }; });
@@ -471,10 +472,12 @@
         var detail = details.find(function (item) { return item.id === b.getAttribute("data-preview-detail"); });
         if (detail) showListPreview(detail, b);
       };
-      b.addEventListener("mouseenter", show);
-      b.addEventListener("focus", show);
-      b.addEventListener("mouseleave", hideListPreview);
-      b.addEventListener("blur", hideListPreview);
+      if (finePointer) {
+        b.addEventListener("mouseenter", show);
+        b.addEventListener("focus", show);
+        b.addEventListener("mouseleave", hideListPreview);
+        b.addEventListener("blur", hideListPreview);
+      }
     });
     root.querySelectorAll(".attachment-detail-open").forEach(function (b) {
       b.addEventListener("click", function () {
@@ -484,15 +487,23 @@
       });
     });
     var preview = root.querySelector("#attachment-preview");
+    preview.addEventListener("click", function (e) {
+      var trigger = e.target.closest("[data-full-detail]");
+      if (!trigger) return;
+      var detail = details.find(function (item) { return item.id === trigger.getAttribute("data-full-detail"); });
+      if (detail) openDetailModal(detail);
+    });
     root.querySelectorAll(".attachment-point").forEach(function (p) {
       var show = function (e) { showPoint(p.getAttribute("data-point"), p.getAttribute("data-level") || "", e && e.clientX, e && e.clientY); };
-      p.addEventListener("mouseenter", show);
-      p.addEventListener("focus", function () { showPoint(p.getAttribute("data-point"), p.getAttribute("data-level") || ""); });
-      p.addEventListener("click", show);
-      p.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!preview.matches(":hover")) preview.hidden = true; }, 100); });
-      p.addEventListener("blur", function () { if (!preview.matches(":hover")) preview.hidden = true; });
+      if (finePointer) {
+        p.addEventListener("mouseenter", show);
+        p.addEventListener("focus", function () { showPoint(p.getAttribute("data-point"), p.getAttribute("data-level") || ""); });
+        p.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!preview.matches(":hover")) preview.hidden = true; }, 100); });
+        p.addEventListener("blur", function () { if (!preview.matches(":hover")) preview.hidden = true; });
+      }
     });
-    preview.addEventListener("mouseleave", function () { preview.hidden = true; });
+    if (finePointer) preview.addEventListener("mouseleave", function () { preview.hidden = true; });
+    else preview.hidden = true;
     wireViewport();
   }
   function wireViewport() {

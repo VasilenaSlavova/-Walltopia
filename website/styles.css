@@ -1613,6 +1613,10 @@ body.hide-transcripts .page-figure details { display: none; }
 .attachment-list-preview[hidden] { display: none; }
 .attachment-list-preview h3 { margin: 4px 0 9px; font-family: var(--display); font-size: 14px; }
 .attachment-list-preview .attachment-preview-image { height: 300px; margin: 0; object-fit: contain; }
+@media (hover: none), (pointer: coarse) {
+  .attachment-list-preview,
+  .attachment-hover-card { display: none !important; }
+}
 .attachment-visual-layout { position: relative; margin-top: 20px; }
 .attachment-acs { position: relative; border: 1px solid var(--line); background: var(--surface-2); padding: 14px; }
 .attachment-viewport { position: relative; aspect-ratio: 900 / 550; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }

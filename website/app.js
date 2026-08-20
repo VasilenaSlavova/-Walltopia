@@ -730,10 +730,13 @@
   }
 
   function wireDetailControls(root) {
+    var finePointer = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     root.querySelectorAll("[data-single-preview]").forEach(function (button) {
       var show = function () { showSingleDetailPreview(button.getAttribute("data-single-preview"), button); };
-      button.addEventListener("mouseenter", show); button.addEventListener("focus", show);
-      button.addEventListener("mouseleave", closeSingleDetailPreview); button.addEventListener("blur", closeSingleDetailPreview);
+      if (finePointer) {
+        button.addEventListener("mouseenter", show); button.addEventListener("focus", show);
+        button.addEventListener("mouseleave", closeSingleDetailPreview); button.addEventListener("blur", closeSingleDetailPreview);
+      }
     });
     root.querySelectorAll("[data-single-view]").forEach(function (button) { button.addEventListener("click", function () { closeSingleDetailPreview(); openSingleDetailModal(button.getAttribute("data-single-view")); }); });
   }
@@ -1181,25 +1184,30 @@
     }
     viewport.addEventListener("pointerup", stopDrag);
     viewport.addEventListener("pointercancel", stopDrag);
+    var finePointer = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     var basePoint = document.getElementById("side-base-detail-point");
     var basePreview = document.getElementById("side-base-detail-preview");
     if (basePoint) {
       basePoint.addEventListener("pointerdown", function (event) { event.stopPropagation(); });
-      basePoint.addEventListener("mouseenter", showSchematicBasePreview);
-      basePoint.addEventListener("focus", showSchematicBasePreview);
-      basePoint.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); }, 100); });
-      basePoint.addEventListener("blur", function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); });
+      if (finePointer) {
+        basePoint.addEventListener("mouseenter", showSchematicBasePreview);
+        basePoint.addEventListener("focus", showSchematicBasePreview);
+        basePoint.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); }, 100); });
+        basePoint.addEventListener("blur", function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); });
+      }
     }
-    if (basePreview) basePreview.addEventListener("mouseleave", hideSchematicBasePreview);
+    if (basePreview && finePointer) basePreview.addEventListener("mouseleave", hideSchematicBasePreview);
     document.querySelectorAll(".side-attachment-detail-point").forEach(function (point) {
       var show = function () { showSchematicAttachmentPreview(point.getAttribute("data-side-level")); };
       point.addEventListener("pointerdown", function (event) { event.stopPropagation(); });
-      point.addEventListener("mouseenter", show);
-      point.addEventListener("focus", show);
-      point.addEventListener("click", show);
-      point.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); }, 100); });
-      point.addEventListener("blur", function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); });
+      if (finePointer) {
+        point.addEventListener("mouseenter", show);
+        point.addEventListener("focus", show);
+        point.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); }, 100); });
+        point.addEventListener("blur", function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); });
+      }
     });
+    if (!finePointer) hideSchematicBasePreview();
     refreshSchematicBasePoint();
     refreshSchematicAttachmentPoints();
     applyView();
