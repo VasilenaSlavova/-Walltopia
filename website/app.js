@@ -829,7 +829,9 @@
   }
 
   function resultOptionTabsHtml() {
-    var picked = !!S.solutionPicked;
+    // The saved option remains available when returning to the calculator, but
+    // the landing chooser must always start visually neutral.
+    var picked = !!S.solutionPicked && !landingViewActive;
     var singleActive = picked && S.attachmentSolution === "single";
     var beamsActive = picked && S.attachmentSolution === "beams";
     return '<div class="result-solution-tabs" role="tablist" aria-label="Choose attachment solution">'
