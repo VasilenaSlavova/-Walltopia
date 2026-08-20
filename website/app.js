@@ -115,7 +115,7 @@
     }
     var calculatorNavLink = document.querySelector('.topnav a[href="index.html"]');
     if (calculatorNavLink) {
-      if (S.solutionPicked && !landingViewActive) calculatorNavLink.setAttribute("aria-current", "page");
+      if (!landingViewActive) calculatorNavLink.setAttribute("aria-current", "page");
       else calculatorNavLink.removeAttribute("aria-current");
     }
   }
@@ -893,7 +893,7 @@
 
     // Vasi #1: before an option is chosen the screen shows only the two options.
     if (!picked) {
-      root.innerHTML = calculatorWelcomeHtml() + '<div class="results-reveal solution-chooser">'
+      root.innerHTML = (landingViewActive ? calculatorWelcomeHtml() : "") + '<div class="results-reveal solution-chooser">'
         + '<div class="results-head"><div><p class="title">Choose an attachment solution</p>'
         + '<p class="sub">Pick Option 1 or Option 2 to configure the inputs and see the drawing.</p></div></div>'
         + resultOptionTabsHtml()
@@ -1704,7 +1704,13 @@
     if (!landingViewActive) return;
     event.preventDefault();
     landingViewActive = false;
+    S.solutionPicked = false;
+    S.loadsRequested = false;
     try { sessionStorage.setItem(CALCULATOR_VIEW_KEY, "calculator"); } catch (error) {}
+    try {
+      localStorage.removeItem(CALCULATOR_SOLUTION_KEY);
+      localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput()));
+    } catch (error) {}
     clampAndRender();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });

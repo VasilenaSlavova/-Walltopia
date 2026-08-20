@@ -22,13 +22,20 @@ const { chromium } = require("C:/Users/vasilena.slavova/.cache/codex-runtimes/co
   const landingVisible = await page.locator(".calculator-welcome-banner").isVisible();
   const calculatorHighlightedOnLanding = await page.locator('.topnav a[href="index.html"]').getAttribute("aria-current");
   await page.locator('.topnav a[href="index.html"]').click();
+  const selectedOptionsBeforeChoice = await page.locator('[data-result-option][aria-selected="true"]').count();
+  const panelVisibleBeforeChoice = await page.locator(".panel").isVisible();
+  const bannerVisibleInCalculator = await page.locator(".calculator-welcome-banner").count();
+  await page.locator('[data-result-option="single"]').click();
   const after = await page.locator("#chips-height button", { hasText: /^14$/ }).getAttribute("aria-pressed");
-  const panelVisible = await page.locator(".panel").isVisible();
+  const panelVisibleAfterChoice = await page.locator(".panel").isVisible();
 
-  const result = { before, landingVisible, calculatorHighlightedOnLanding, after, panelVisible };
+  const result = { before, landingVisible, calculatorHighlightedOnLanding, selectedOptionsBeforeChoice,
+    panelVisibleBeforeChoice, bannerVisibleInCalculator, after, panelVisibleAfterChoice };
   console.log(JSON.stringify(result, null, 2));
   await browser.close();
-  if (before !== "true" || !landingVisible || calculatorHighlightedOnLanding !== null || after !== "true" || !panelVisible) {
+  if (before !== "true" || !landingVisible || calculatorHighlightedOnLanding !== null
+    || selectedOptionsBeforeChoice !== 0 || panelVisibleBeforeChoice || bannerVisibleInCalculator !== 0
+    || after !== "true" || !panelVisibleAfterChoice) {
     process.exitCode = 1;
   }
 })().catch((error) => {
