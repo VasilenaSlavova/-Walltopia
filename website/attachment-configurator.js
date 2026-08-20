@@ -257,6 +257,7 @@
     var outerRightBayX = right - (right - mid) * 0.22;
     var supportMainForeground = [];
     var supportNodeForeground = [];
+    var supportBasePoints = [];
     function supportFramePath(x, direction, hideMiddleBeamNode) {
       function beamYAt(levelY, px) {
         return levelY + 12 + (-24) * ((px - left) / (right - left));
@@ -312,6 +313,7 @@
       var topJointPoint = bracePoints[bracePoints.length - 1].joint;
       var groundX = lowerJointX;
       var groundPointY = groundY(groundX);
+      supportBasePoints.push({ x: groundX, y: groundPointY });
       function technicalMember(x1, y1, x2, y2, memberClass) {
         var d = 'M' + x1 + ' ' + y1 + 'L' + x2 + ' ' + y2;
         return '<path class="acs-support-member-outline ' + memberClass + '" d="' + d + '"/>'
@@ -360,8 +362,14 @@
         + supportNodeForeground.join('')
         + '</g>'
       : '';
+    var supportBaseDetailPoints = visualOnly && state.columnSlab && state.columnBaseDetail
+      ? supportBasePoints.map(function (point) {
+          return '<circle class="acs-column-point attachment-point acs-support-base-detail-point" data-point="base" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Supporting slab base detail at X0" cx="' + point.x + '" cy="' + point.y + '" r="8"><title>Supporting slab base detail · ' + state.columnBaseDetail + '</title></circle>'
+            + '<text class="acs-column-point-label acs-support-base-detail-label" x="' + (point.x + 11) + '" y="' + (point.y - 20) + '">X0</text>';
+        }).join('')
+      : '';
     var basePointGlyph = visualOnly
-      ? slabGlyphSvg(mid, baseY, state.columnSlab, !!(state.columnSlab && state.columnBaseDetail))
+      ? slabGlyphSvg(mid, baseY, state.columnSlab, false)
       : '';
     return '<svg viewBox="0 0 900 550" role="img" aria-label="Interactive ACS geometry and attachment points">'
       + '<defs><marker id="config-arrow-ll" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="acs-ll-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="config-arrow-dl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="acs-dl-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="config-base-arrow-ll" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path class="acs-ll-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="config-base-arrow-dl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path class="acs-dl-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="acs-tech-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="acs-tech-arrowhead" d="M0 0L10 5L0 10Z"/></marker></defs>'
@@ -369,7 +377,8 @@
       + '<rect class="acs-full-column" x="' + (left-7) + '" y="' + (topY+12) + '" width="14" height="' + (baseY-(topY+12)+12) + '"/><rect class="acs-full-column" x="' + (mid-7) + '" y="' + topY + '" width="14" height="' + (baseY-topY) + '"/><rect class="acs-full-column" x="' + (right-7) + '" y="' + (topY-12) + '" width="14" height="' + (baseY-(topY-12)-12) + '"/>'
       + beams + pointMarkers + labels
       + '<g class="acs-callouts"><text x="18" y="205"><tspan x="18">Existing column</tspan><tspan x="18" dy="14">of the building</tspan></text><path d="M105 214L' + left + ' ' + (baseY-110) + '" marker-end="url(#acs-tech-arrow)"/>'
-      + '<text x="430" y="' + (beamTargetY-42) + '">Walltopia beam</text><path d="M475 ' + (beamTargetY-35) + 'L470 ' + beamTargetY + '" marker-end="url(#acs-tech-arrow)"/></g>'
+      + '<text x="430" y="' + (beamTargetY-42) + '">Walltopia beam</text><path d="M475 ' + (beamTargetY-35) + 'L470 ' + beamTargetY + '" marker-end="url(#acs-tech-arrow)"/>'
+      + (visualOnly ? '<text x="112" y="' + Math.max(24, topY-28) + '">Walltopia single column</text><path d="M168 ' + Math.max(30, topY-22) + 'L' + (leftBayX+16) + ' ' + (levelYs[levelYs.length-1] + 45 + (-24) * ((leftBayX-left)/(right-left))) + '" marker-end="url(#acs-tech-arrow)"/>' : '') + '</g>'
       + '<polygon class="acs-contour" points="' + polygon + '"/><polyline class="acs-top-contour" points="' + contourTop.map(function(p){return p.join(",");}).join(" ") + '"/>'
       + '<g class="acs-contour-notes"><text class="acs-contour-label" x="78" y="510"><tspan x="78">Climbing surface</tspan><tspan class="is-strong" x="78" dy="14">bottom contour</tspan></text><path d="M145 493L132 458L' + contourTop[0][0] + ' ' + contourTop[0][1] + '" marker-end="url(#acs-tech-arrow)"/>'
       + '<text class="acs-contour-label" x="650" y="510"><tspan x="650">Climbing surface</tspan><tspan class="is-strong" x="650" dy="14">top contour</tspan></text><path d="M650 493L635 470L' + contourBottom[4][0] + ' ' + contourBottom[4][1] + '" marker-end="url(#acs-tech-arrow)"/></g>'
@@ -379,7 +388,7 @@
       + dims + '<line class="acs-dim" x1="760" y1="' + (topY-12) + '" x2="760" y2="' + baseY + '"/><text class="acs-dim-label' + flashClass('height', heightText) + '" x="775" y="' + ((topY+baseY)/2) + '">' + heightText + '</text>'
       + '<g class="acs-axis" transform="translate(820 410)"><path d="M0 0V-48" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L42-9" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L25 32" marker-end="url(#acs-tech-arrow)"/><text x="-7" y="-55">Z</text><text x="48" y="-7">Y</text><text x="28" y="43">X</text></g>'
       + (hasAttachmentDetail ? '<text class="acs-caption" x="28" y="30">Hover, focus or click a red point to preview its attachment detail</text>' : '')
-      + supportFrames + baseReactionArrows + basePointGlyph + circles + '</svg>';
+      + supportFrames + baseReactionArrows + basePointGlyph + supportBaseDetailPoints + circles + '</svg>';
   }
   function previewHtml(d, label) {
     return '<span class="attachment-label">' + label + '</span><h3>' + d.id + " · " + d.title.split("·")[0].trim() + '</h3>' + detailImage(d, "attachment-preview-image") + '<button class="attachment-full-trigger" type="button" data-full-detail="' + d.id + '">View full detail</button>';
