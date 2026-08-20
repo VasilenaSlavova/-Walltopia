@@ -26,6 +26,7 @@
   var CALCULATOR_DRAFT_KEY = "walltopia.calculator.draft.v1";
   var CALCULATOR_SOLUTION_KEY = "walltopia.calculator.solution.v1";
   var CALCULATOR_WELCOME_KEY = "walltopia.calculator.welcome.seen.v1";
+  var CALCULATOR_VIEW_KEY = "walltopia.calculator.view.v1";
   // Keep this value stable for the lifetime of the page. Marking the visit as
   // seen must not make the welcome banner disappear during an auth re-render.
   var showFirstVisitWelcome = true;
@@ -36,7 +37,10 @@
   var schematicView = { scale: 1, panX: 0, panY: 0 };
   var mobileResultsWasReady = false;
   var mobileResultsAutoScrollEnabled = false;
-  var landingViewActive = false;
+  var landingViewActive = true;
+  // A new tab begins on the landing screen. Refreshing that tab preserves the
+  // current view, so an in-progress calculator does not jump back to landing.
+  try { landingViewActive = sessionStorage.getItem(CALCULATOR_VIEW_KEY) !== "calculator"; } catch (error) {}
   var showMissingFlag = false;   // View loads pressed while inputs incomplete
 
   // ---- derive option sets ----
@@ -809,6 +813,7 @@
     document.querySelectorAll("[data-result-option]").forEach(function (button) {
       button.addEventListener("click", function () {
         landingViewActive = false;
+        try { sessionStorage.setItem(CALCULATOR_VIEW_KEY, "calculator"); } catch (error) {}
         S.attachmentSolution = button.getAttribute("data-result-option");
         S.solutionPicked = true;
         try { localStorage.setItem(CALCULATOR_SOLUTION_KEY, S.attachmentSolution); } catch (error) {}
@@ -1657,6 +1662,7 @@
     S.solutionPicked = retainedSolutionPicked;
     S.loadsRequested = false;
     landingViewActive = false;
+    try { sessionStorage.setItem(CALCULATOR_VIEW_KEY, "calculator"); } catch (error) {}
     showMissingFlag = false;
     singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
     columnPointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
@@ -1686,6 +1692,7 @@
     // The brand is the calculator's home action: return to the welcome and
     // solution chooser without discarding the in-progress calculator state.
     landingViewActive = true;
+    try { sessionStorage.setItem(CALCULATOR_VIEW_KEY, "landing"); } catch (error) {}
     history.replaceState(null, "", "index.html");
     renderResults();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1695,6 +1702,7 @@
     if (!landingViewActive) return;
     event.preventDefault();
     landingViewActive = false;
+    try { sessionStorage.setItem(CALCULATOR_VIEW_KEY, "calculator"); } catch (error) {}
     clampAndRender();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
