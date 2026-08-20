@@ -133,6 +133,9 @@ body {
 .field { margin-bottom: 18px; }
 .field > label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .4px; }
 .field .hint { font-size: 11.5px; color: var(--ink-faint); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.field.missing { padding: 10px; margin-inline: -10px; border-left: 4px solid var(--accent); background: var(--accent-soft); }
+.missing-note { margin: 8px 0 12px; padding: 9px 11px; background: var(--accent-soft); color: var(--bad); border-left: 3px solid var(--accent); font-size: 12.5px; font-weight: 700; }
+.view-loads { width: 100%; margin-bottom: 12px; }
 
 /* segmented control */
 .seg { display: flex; background: var(--surface-2); border: 1px solid var(--line-strong); padding: 3px; gap: 3px; }
@@ -219,6 +222,8 @@ table.loads .grp-ll { color: var(--ll); }
 .acs-diagram { display: block; width: 100%; height: auto; overflow: visible; }
 .acs-frame path, .acs-frame line { fill: none; stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .acs-column { fill: rgba(44, 46, 61, 0.06); stroke: var(--ink); stroke-width: 2; }
+.acs-extra-column { fill: none; stroke: #52c46b; stroke-width: 4; stroke-linejoin: round; opacity: .95; }
+.acs-slab { fill: rgba(82, 196, 107, .12); stroke: #36a852; stroke-width: 4; }
 .acs-beam { stroke: var(--navy); stroke-width: 4; stroke-linecap: round; transition: stroke .2s; }
 .acs-point { fill: #fff; stroke: var(--accent); stroke-width: 3; }
 .acs-force { fill: none; stroke: var(--accent); stroke-width: 3; stroke-dasharray: 8 7; animation: acs-flow 1.2s linear infinite; }
@@ -253,6 +258,7 @@ table.loads .grp-ll { color: var(--ll); }
 
 .footnote { text-align: center; color: var(--ink-faint); font-size: 11.5px; margin-top: 26px; }
 .empty { padding: 60px 20px; text-align: center; color: var(--ink-faint); }
+.empty.compact { padding: 18px 16px; margin-top: 16px; background: var(--surface-2); border: 1px dashed var(--line-strong); }
 
 /* ============ document reader (manuals) ============ */
 .reader { max-width: 1080px; margin: 0 auto; padding: 26px 26px 72px; }

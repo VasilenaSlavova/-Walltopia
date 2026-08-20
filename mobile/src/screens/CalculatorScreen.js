@@ -35,6 +35,9 @@ export default function CalculatorScreen({ data, initialProject, onProjectChange
   const [project, setProject] = useState(initialProject || null);
   const [resultView, setResultView] = useState("results");
   const [step, setStep] = useState(initialProject ? "results" : "inputs");
+  const [loadsRequested, setLoadsRequested] = useState(Boolean(initialProject));
+  const [showMissing, setShowMissing] = useState(false);
+  const [touched, setTouched] = useState({ height: false, levels: false, span: false, overhang: false, slab: false });
   const [diagramGestureActive, setDiagramGestureActive] = useState(false);
   const draftReady = useRef(Boolean(initialProject));
   const calculatorScroll = useRef(null);
@@ -75,8 +78,28 @@ export default function CalculatorScreen({ data, initialProject, onProjectChange
 
   const um = L.unitMeta(data, s.units);
   const opt = L.optionsFor(data, s);
-  const update = (patch) => setS((p) => L.clampState(data, { ...p, ...patch }));
+  const update = (patch, field) => {
+    if (field) setTouched((prev) => ({ ...prev, [field]: true }));
+    setLoadsRequested(false);
+    setS((p) => L.clampState(data, { ...p, ...patch }));
+  };
   const setUnits = (v) => setS((p) => L.clampState(data, { ...p, units: v, cap: v !== p.units ? null : p.cap }));
+  const requiredFields = s.type === "wall" ? ["height", "levels", "span", "overhang", "slab"] : ["height", "overhang", "slab"];
+  const missingFields = requiredFields.filter((field) => !touched[field]);
+  const fieldMissing = (field) => showMissing && missingFields.includes(field);
+  const viewLoads = () => {
+    if (missingFields.length) {
+      setShowMissing(true);
+      setLoadsRequested(false);
+      return;
+    }
+    setShowMissing(false);
+    setLoadsRequested(true);
+    Keyboard.dismiss();
+    setResultView("results");
+    setStep("results");
+    requestAnimationFrame(() => requestAnimationFrame(() => calculatorScroll.current?.scrollTo({ y:0, animated:true })));
+  };
   const unitLbl = s.units === "EU" ? "m" : "ft";
 
   const have = L.hasResult(data, s);
@@ -84,7 +107,7 @@ export default function CalculatorScreen({ data, initialProject, onProjectChange
   const vd = L.verdict(data, s);
   const rows = L.pointRows(data, s);
   const forceLevels = L.forceLevels(data, s);
-  const summary = `${L.fmtLen(s.height, s.units)} · ${s.type === "wall" ? s.levels + "-lvl" : "boulder"} · A ${L.fmtLen(s.span, s.units)} · X ${L.fmtLen(s.overhang, s.units)}`;
+  const summary = `${L.fmtLen(s.height, s.units)} · ${s.type === "wall" ? s.levels + "-lvl · A " + L.fmtLen(s.span, s.units) : "boulder"} · X ${L.fmtLen(s.overhang, s.units)}`;
 
   return (
     <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={12}>
@@ -95,12 +118,7 @@ export default function CalculatorScreen({ data, initialProject, onProjectChange
             <Text style={st.inputTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>Preliminary Loads Calculator</Text>
             <Text style={st.inputIntro}>Enter the climbing-wall geometry and supporting-structure parameters to calculate preliminary attachment and column loads.</Text>
             <View style={st.inputNotice}><Text style={st.inputNoticeText}>The results are intended for preliminary assessment only and must be verified by the responsible structural engineer.</Text></View>
-            <InputFields s={s} opt={opt} um={um} unitLbl={unitLbl} forceLevels={forceLevels} update={update} setUnits={setUnits} onCheck={() => {
-              Keyboard.dismiss();
-              setResultView("results");
-              setStep("results");
-              requestAnimationFrame(() => requestAnimationFrame(() => calculatorScroll.current?.scrollTo({ y:0, animated:true })));
-            }} onCapacityFocus={(target)=>requestAnimationFrame(()=>{const node=findNodeHandle(target);const responder=calculatorScroll.current?.getScrollResponder?.();if(node&&responder)responder.scrollResponderScrollNativeHandleToKeyboard(node,12,true);})} />
+            <InputFields s={s} opt={opt} um={um} unitLbl={unitLbl} forceLevels={forceLevels} update={update} setUnits={setUnits} onCheck={viewLoads} showMissing={showMissing} missingFields={missingFields} fieldMissing={fieldMissing} onCapacityFocus={(target)=>requestAnimationFrame(()=>{const node=findNodeHandle(target);const responder=calculatorScroll.current?.getScrollResponder?.();if(node&&responder)responder.scrollResponderScrollNativeHandleToKeyboard(node,12,true);})} />
           </Card>
         ) : (<>
         <Pressable onPress={() => setStep("inputs")} style={st.optionsBar}>
@@ -116,19 +134,19 @@ export default function CalculatorScreen({ data, initialProject, onProjectChange
               <Text style={st.title}>{L.titleFor(s)}</Text>
               <Text style={st.sub}>
                 {(s.type === "wall" ? s.levels + (s.levels === 1 ? " attachment level" : " attachment levels") : "single attachment")}
-                {` · A = ${L.fmtLen(s.span, s.units)} · X = ${L.fmtLen(s.overhang, s.units)} · ${um.force}${s.factored ? " · factored" : ""}`}
+                {`${s.type === "wall" ? ` · A = ${L.fmtLen(s.span, s.units)}` : ""} · X = ${L.fmtLen(s.overhang, s.units)} · ${um.force}${s.factored ? " · factored" : ""}`}
               </Text>
 
-              <View style={[st.verdict, vd === "ok" ? st.vOk : vd === "bad" ? st.vBad : st.vNeutral]}>
+              {loadsRequested ? <View style={[st.verdict, vd === "ok" ? st.vOk : vd === "bad" ? st.vBad : st.vNeutral]}>
                 <Text style={[st.verdictTitle, { color: vd === "ok" ? C.ok : vd === "bad" ? C.bad : C.inkSoft }]}>
                   {vd === "neutral" ? "Governing column load" : vd === "ok" ? "✓ Applicable" : "✕ Exceeds capacity"}
                 </Text>
                 <Text style={[st.verdictResult, { color: vd === "ok" ? C.ok : vd === "bad" ? C.bad : C.ink }]}><Text style={st.verdictValue}>{L.fmtForce(gov, s.units)} {um.force}</Text>
                   <Text style={st.verdictResult}>{vd === "neutral" ? "  (factored)" : ` required vs ${L.fmtForce(s.cap, s.units)} ${um.force} capacity`}</Text>
                 </Text>
-              </View>
+              </View> : null}
 
-              {s.type === "wall" && forceLevels.length > 0 && (
+              {loadsRequested && s.type === "wall" && forceLevels.length > 0 && (
                 <View style={{ marginBottom: 10 }}>
                   <Text style={st.forceLab}>Force level — attachment level taken at its maximum live load</Text>
                   <Chips small values={forceLevels.map((f) => f.lvl)} value={s.force} onChange={(v) => update({ force: v })}
@@ -149,10 +167,10 @@ export default function CalculatorScreen({ data, initialProject, onProjectChange
 
               {resultView === "results" ? (
                 <View>
-                  <PointTable rows={rows} s={s} um={um} />
+                  {loadsRequested ? <PointTable rows={rows} s={s} um={um} /> : <Text style={st.emptyCompact}>Select the required inputs, then tap View loads to see calculations.</Text>}
                   <CoordinateSymbols />
                   <View style={st.loadDiagramSection}>
-                    <SideElevationDiagram state={s} rows={rows} heights={zLevels(data, s)} maxOverhang={Math.max(...opt.overhangs, 1)} unitMeta={um} onGestureActiveChange={setDiagramGestureActive} />
+                    <SideElevationDiagram state={s} rows={loadsRequested ? rows : []} heights={zLevels(data, s)} maxOverhang={Math.max(...opt.overhangs, 1)} unitMeta={um} onGestureActiveChange={setDiagramGestureActive} />
                   </View>
                   <MobileNotes s={s} um={um} />
                 </View>
@@ -160,7 +178,7 @@ export default function CalculatorScreen({ data, initialProject, onProjectChange
               {resultView === "diagram" ? (
                 <View>
                   <AttachmentDiagram structureType={s.type} span={s.span} overhang={s.overhang} height={s.height} zValues={zLevels(data, s)}
-                    levelForces={rows.slice(s.type === "boulder" ? 1 : 2).map((r) => L.factored(r.lLL ?? r.rLL, "ll", s, um))} forceUnit={um.force}
+                    levelForces={loadsRequested ? rows.slice(s.type === "boulder" ? 1 : 2).map((r) => L.factored(r.lLL ?? r.rLL, "ll", s, um)) : []} forceUnit={um.force}
                     initialBaseDetail={s.baseDetail || "CF-01"} initialLevelDetail={s.levelDetail || "CW-01"}
                     onSelectionChange={(selection) => setS((previous) => previous.baseDetail === selection.baseDetail && previous.levelDetail === selection.levelDetail ? previous : { ...previous, ...selection })} />
                 </View>
@@ -177,20 +195,22 @@ export default function CalculatorScreen({ data, initialProject, onProjectChange
   );
 }
 
-function InputFields({ s, opt, um, unitLbl, forceLevels, update, setUnits, onCheck, onCapacityFocus }) {
+function InputFields({ s, opt, um, unitLbl, forceLevels, update, setUnits, onCheck, showMissing, missingFields, fieldMissing, onCapacityFocus }) {
   const capacityInput=useRef(null);
   const factoredControl=useRef(null);
   return <View style={{ marginTop: 20 }}>
     <Field label="Units"><Segmented value={s.units} onChange={setUnits} options={[{ label:"Metric (kN·m)",value:"EU" },{ label:"Imperial (lb·ft)",value:"USA" }]} /></Field>
     <Field label="Structure type" hint={s.type === "wall" ? "with protection points" : "without protection points"}><Segmented value={s.type} onChange={(v)=>update({type:v})} options={[{label:"Climbing wall",value:"wall"},{label:"Boulder wall",value:"boulder"}]} /></Field>
-    <Field label="Climbing-surface height" hint={`(${unitLbl})`}><Chips values={opt.heights} value={s.height} onChange={(v)=>update({height:v})} label={lenChip(s.units)} /></Field>
-    {s.type === "wall" ? <Field label="Attachment scheme" hint="(levels of attachment by height)"><Chips small values={opt.schemes} value={s.levels} onChange={(v)=>update({levels:v})} label={(v)=>v+(v===1?" level":" levels")} /></Field> : null}
-    <Field label="Column span · A" hint={`(${unitLbl}, between building columns)`}><Chips values={opt.spans} value={s.span} onChange={(v)=>update({span:v})} label={lenChip(s.units)} /></Field>
-    <Field label="Overhang · X" hint={`(${unitLbl}, top − bottom contour)`}><Chips values={opt.overhangs} value={s.overhang} onChange={(v)=>update({overhang:v})} label={lenChip(s.units)} /></Field>
+    <View style={fieldMissing("height") ? st.missingField : null}><Field label="Climbing-surface height" hint={`(${unitLbl})`}><Chips values={opt.heights} value={s.height} onChange={(v)=>update({height:v}, "height")} label={lenChip(s.units)} /></Field></View>
+    {s.type === "wall" ? <View style={fieldMissing("levels") ? st.missingField : null}><Field label="Attachment scheme" hint="(levels of attachment by height)"><Chips small values={opt.schemes} value={s.levels} onChange={(v)=>update({levels:v}, "levels")} label={(v)=>v+(v===1?" level":" levels")} /></Field></View> : null}
+    {s.type === "wall" ? <View style={fieldMissing("span") ? st.missingField : null}><Field label="Column span · A" hint={`(${unitLbl}, between building columns)`}><Chips values={opt.spans} value={s.span} onChange={(v)=>update({span:v}, "span")} label={lenChip(s.units)} /></Field></View> : null}
+    <View style={fieldMissing("overhang") ? st.missingField : null}><Field label="Overhang · X" hint={`(${unitLbl}, top − bottom contour)`}><Chips values={opt.overhangs} value={s.overhang} onChange={(v)=>update({overhang:v}, "overhang")} label={lenChip(s.units)} /></Field></View>
+    <View style={fieldMissing("slab") ? st.missingField : null}><Field label="Select the supporting slab"><Segmented value={s.slab || ""} onChange={(v)=>update({slab:v}, "slab")} options={[{label:"Left slab",value:"left"},{label:"Right slab",value:"right"}]} /></Field></View>
     {s.type === "wall" && forceLevels.length > 0 ? <Field label="Live load force level" hint="(attachment level taken at its MAX live load)"><Chips small values={forceLevels.map((f)=>f.lvl)} value={s.force} onChange={(v)=>update({force:v})} label={(lvl)=>{const level=forceLevels.find((f)=>f.lvl===lvl);return `Z${lvl}${level&&level.height?` · ${L.fmtLen(level.height,s.units)}`:""}`;}} /></Field> : null}
     <View style={{ height:1, backgroundColor:C.line, marginVertical:6 }} />
     <Field label="Check against your structure" hint="(optional)"><View style={{flexDirection:"row"}}><TextInput ref={capacityInput} style={st.capInput} keyboardType="numeric" placeholder="allowable column load" value={s.cap==null?"":String(s.cap)} onFocus={()=>onCapacityFocus(factoredControl.current||capacityInput.current)} onChangeText={(t)=>update({cap:t===""?null:Number(t)})}/><View style={st.capUnit}><Text style={{color:"#fff",fontFamily:FD[700]}}>{um.force}</Text></View></View></Field>
-    <Btn title="Check capacity" variant="primary" onPress={onCheck} />
+    <Btn title="View loads" variant="primary" onPress={onCheck} />
+    {showMissing && missingFields.length > 0 ? <Text style={st.missingNote}>Select the highlighted fields before viewing load calculations.</Text> : null}
     <Text style={st.capacityHint}>Horizontal load one existing column / frame can carry.</Text>
     <View ref={factoredControl} collapsable={false} style={{ flexDirection:"row",alignItems:"center",gap:10 }}><Switch value={s.factored} onValueChange={(v)=>update({factored:v})} trackColor={{true:C.red}}/><Text style={{ color:C.inkSoft,fontSize:13,fontFamily:FB[400],flex:1 }}>Show factored design values (×{um.dl} DL, ×{um.ll} LL)</Text></View>
   </View>;
@@ -270,7 +290,7 @@ function PointTable({ rows, s, um }) {
   );
 }
 
-const currentInput = (s) => ({ units: s.units, type: s.type, height: s.height, levels: s.levels, overhang: s.overhang, span: s.span, force: s.force, factored: s.factored, capacity: s.cap, baseDetail: s.baseDetail || "CF-01", levelDetail: s.levelDetail || "CW-01" });
+const currentInput = (s) => ({ units: s.units, type: s.type, height: s.height, levels: s.levels, overhang: s.overhang, span: s.span, force: s.force, factored: s.factored, capacity: s.cap, slab: s.slab, baseDetail: s.baseDetail || "CF-01", levelDetail: s.levelDetail || "CW-01" });
 
 function ProjectBar({ data, state, user, project, onSaved, onExit, requireLogin }) {
   const [showSave, setShowSave] = useState(false);
@@ -409,6 +429,9 @@ const st = StyleSheet.create({
   stepKicker: { color:C.red, fontFamily:FD[800], fontSize:10, textTransform:"uppercase", letterSpacing:.7 },
   inputTitle: { color:C.ink, fontFamily:FD[900], fontSize:23, marginTop:5 },
   capacityHint: { marginTop:6, marginBottom:16, color:C.inkFaint, fontFamily:FB[400], fontSize:11.5, lineHeight:16 },
+  missingField: { backgroundColor:C.badSoft, borderLeftColor:C.red, borderLeftWidth:3, paddingHorizontal:10, paddingTop:10, marginHorizontal:-10, marginBottom:6 },
+  missingNote: { marginTop:8, marginBottom:10, color:C.bad, backgroundColor:C.badSoft, borderLeftColor:C.red, borderLeftWidth:3, paddingHorizontal:10, paddingVertical:8, fontFamily:FB[700], fontSize:12 },
+  emptyCompact: { color:C.inkFaint, fontFamily:FB[400], fontSize:12.5, textAlign:"center", paddingVertical:16, paddingHorizontal:12, backgroundColor:C.surface2, borderColor:C.lineStrong, borderWidth:1, marginTop:6 },
   inputIntro: { color:C.inkSoft, fontFamily:FB[400], fontSize:12.5, lineHeight:18, marginTop:5, textAlign:"justify" },
   inputNotice: { backgroundColor:C.surface2, borderLeftColor:C.red, borderLeftWidth:3, paddingHorizontal:11, paddingVertical:9, marginTop:12 },
   inputNoticeText: { color:C.inkSoft, fontFamily:FB[600], fontSize:11.5, lineHeight:17, textAlign:"justify" },

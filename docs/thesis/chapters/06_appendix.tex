@@ -1,0 +1,139 @@
+% ПРИЛОЖЕНИЯ — без номер.
+% По А.3: изходен текст на програми, формати на структури от данни, екранни форми,
+% получени резултати.
+\section*{ПРИЛОЖЕНИЯ}
+\label{sec:appendix}
+\addcontentsline{toc}{section}{ПРИЛОЖЕНИЯ}
+
+\subsection*{Приложение А. Формат на записа с товарните таблици}
+\addcontentsline{toc}{subsection}{Приложение А. Формат на записа с товарните таблици}
+
+Наборът е един обект с три полета: \code{meta} с описанието на мерните системи,
+\code{walls} с конфигурациите на катерачните стени, ключирани по височина и брой нива,
+и \code{boulder} с редовете за боулдер стени. Листинг~\ref{lst:datafmt} показва един
+съкратен ред; пълният набор съдържа 26\,600 числови стойности.
+
+\begin{lstlisting}[language=JSONlang,caption={Съкратен запис на една конфигурация},label={lst:datafmt}]
+"W_11_2": {
+  "height": 11, "levels": 2,
+  "lhEU": { "1": 5.5, "2": 10.5 },
+  "lhUS": { "1": 18,  "2": 34.4 },
+  "rows": [
+    { "x": 1, "a": 4, "lvl": 1,
+      "eu": { "RZ0DL": -5.38, "RX0DL": -0.69, "RX1DL": 0.29, "RX2DL": 0.39,
+              "RZ0LL": -8,    "RX0LL": -1.24, "RX1LL": 2.26, "RX2LL": 0.54,
+              "LX1DL": 1.16,  "LX2DL": 1.56,  "LX1LL": 3.955, "LX2LL": 0.945 },
+      "us": { "RZ0DL": -1210.5, "RX0DL": -155.25, "...": "..." } }
+  ]
+}
+\end{lstlisting}
+
+Полетата \code{lhEU} и \code{lhUS} дават височините на нивата на закрепване и се
+използват както за надписите в таблицата с резултатите, така и за построяването на
+схемата. Полетата \code{a} и \code{x} са разстоянието между колоните и наклонът,
+\code{lvl} е номерът на нивото, за което важи редът.
+
+\subsection*{Приложение Б. Формат на записа за проект}
+\addcontentsline{toc}{subsection}{Приложение Б. Формат на записа за проект}
+
+\begin{lstlisting}[language=JSONlang,caption={Публично представяне на един проект},label={lst:projfmt}]
+{
+  "id": "6a807fd62bbc9f4b753e1834",
+  "name": "Sofia Gym - main hall",
+  "tags": ["gym", "EU", "zone-1"],
+  "properties": [ { "key": "Client", "value": "Acme Climbing Ltd" },
+                  { "key": "Ref",    "value": "WT-2026-001" } ],
+  "input": { "units": "EU", "type": "wall", "height": 12, "levels": 3,
+             "span": 6, "overhang": 1, "force": 1, "factored": false },
+  "snapshot": { "title": "Climbing wall 12 m", "unit": "kN",
+                "governing": 5.15, "verdict": "ok" },
+  "createdAt": "2026-08-15T15:11:02.317Z",
+  "updatedAt": "2026-08-15T15:11:02.317Z"
+}
+\end{lstlisting}
+
+\subsection*{Приложение В. Признак за нарушение при проверката на разположението}
+\addcontentsline{toc}{subsection}{Приложение В. Признак за нарушение при проверката на разположението}
+
+Листинг~\ref{lst:probe} съдържа ядрото на проверката по §\ref{subsec:howcheck}:
+обхождането на документа и трите изключения, обосновани там.
+
+\begin{lstlisting}[caption={Откриване на елементите, които разширяват страницата},label={lst:probe}]
+function scan(doc, win) {
+  const vw = doc.documentElement.clientWidth;
+  const inScroller = (el) => {
+    let p = el.parentElement;
+    while (p && p !== doc.body) {
+      const o = win.getComputedStyle(p).overflowX;
+      if (["auto", "scroll", "hidden", "clip"].includes(o)) return true;
+      p = p.parentElement;
+    }
+    return false;
+  };
+  const bad = [];
+  for (const el of doc.querySelectorAll("body *")) {
+    const r  = el.getBoundingClientRect();
+    if (!r.width && !r.height) continue;
+    const cs = win.getComputedStyle(el);
+    if (cs.position === "fixed" || cs.display === "none") continue;
+    if ((r.right > vw + 1 || r.left < -1) && !inScroller(el)) bad.push(el);
+  }
+  return { violations: bad,
+           documentOverflow: doc.documentElement.scrollWidth - vw };
+}
+\end{lstlisting}
+
+\subsection*{Приложение Г. Отстраняване на основния дефект}
+\addcontentsline{toc}{subsection}{Приложение Г. Отстраняване на основния дефект}
+
+Клас Д1 от \tabref{tab:taxonomy}, първопричината на всичките 17 наблюдавани
+нарушения, се отстранява с едно правило:
+
+\begin{lstlisting}[language=CSS,caption={Основният блок не приема вътрешната си минимална ширина},label={lst:fix}]
+/* `body` is a column flex container and every page's <main> is centred with
+   `margin-inline: auto`. An auto cross-axis margin cancels `align-items:
+   stretch`, so <main> falls back to fit-content sizing - which is at least
+   its min-content width. Pinning the width to 100% keeps <main> exactly
+   viewport-wide and leaves overflow to the inner scroll containers. */
+body > main { flex: 1 0 auto; width: 100%; min-width: 0; }
+\end{lstlisting}
+
+\subsection*{Приложение Д. Отчет от изпитанието на приложния програмен интерфейс}
+\addcontentsline{toc}{subsection}{Приложение Д. Отчет от изпитанието}
+
+Екранните форми са дадени в Раздел~\ref{sec:userguide} на мястото, където съответната
+функция се описва, и не се повтарят тук.
+
+\begin{lstlisting}[language={},caption={Изход от изпълнението на изпитанието (съкратен)},label={lst:apilog}]
+  ok - health ok               ok - login succeeds
+  ok - register rejects bad email      ok - login returns a bearer token
+  ok - register rejects short password ok - bearer header accepted
+  ok - register creates user           ok - create / read / update project
+  ok - register sets auth cookie       ok - filter by tag, sort by name
+  ok - me returns current user         ok - other user's project -> 404
+  ok - me is 401 without cookie        ok - delete project
+  ok - duplicate email -> 409          ok - deleted project gone
+  ok - wrong password -> 401           ok - logout
+
+ALL 34 CHECKS PASSED
+\end{lstlisting}
+
+\subsection*{Приложение Е. Указания за изграждане и стартиране}
+\addcontentsline{toc}{subsection}{Приложение Е. Изграждане и стартиране}
+
+\begin{lstlisting}[language=bash,caption={Стартиране на трите части},label={lst:run}]
+# Услуга (изисква server/.env с MONGODB_URI и JWT_SECRET)
+cd server && npm install && npm start          # http://localhost:8787
+
+# Услуга с база в паметта, за разработка и изпитания
+cd server && node test/serve-fake.js
+
+# Изпитание на приложния програмен интерфейс
+cd server && node test/api.test.js
+
+# Мобилен клиент (extra.apiBase в app.json сочи към адреса на услугата)
+cd mobile && npm install && npm start
+\end{lstlisting}
+
+Уеб клиентът не изисква изграждане: услугата обслужва директорията \code{website/}
+като статични файлове, така че при промяна е достатъчно презареждане на страницата.
