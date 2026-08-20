@@ -776,6 +776,33 @@ p { text-align: justify; }
   .column-point-body > #attachment-config-root .attachment-viewport { position: relative; inset: auto; aspect-ratio: 900 / 550; }
 }
 @media (max-width: 600px) {
+  .calculator-welcome-banner {
+    min-height: 0;
+    margin-bottom: 24px;
+    padding: 30px 18px 32px;
+  }
+  .calculator-welcome-banner .welcome-hold-top { display: none; }
+  .calculator-welcome-banner::before,
+  .calculator-welcome-banner::after {
+    width: 128px;
+    height: 92px;
+    opacity: .55;
+  }
+  .calculator-welcome-banner strong {
+    font-size: clamp(24px, 8vw, 30px);
+    line-height: 1.08;
+  }
+  .calculator-welcome-banner .welcome-title-to { width: 116px; gap: 9px; }
+  .calculator-welcome-banner p {
+    margin-top: 20px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .calculator-welcome-banner p span {
+    text-align: left;
+    text-align-last: auto;
+  }
+  .calculator-welcome-banner p span + span { margin-top: 10px; }
   .result-solution-tabs button {
     display: flex;
     flex-direction: column;
@@ -1616,6 +1643,9 @@ body.hide-transcripts .page-figure details { display: none; }
 @media (hover: none), (pointer: coarse) {
   .attachment-list-preview,
   .attachment-hover-card { display: none !important; }
+}
+@media (max-width: 700px) {
+  .capacity-formula { display: none; }
 }
 .attachment-visual-layout { position: relative; margin-top: 20px; }
 .attachment-acs { position: relative; border: 1px solid var(--line); background: var(--surface-2); padding: 14px; }

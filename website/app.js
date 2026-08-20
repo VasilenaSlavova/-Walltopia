@@ -598,7 +598,7 @@
     var baseGoverning=governingRZ0(), baseChecked=S.baseCapacity!==null, baseOk=baseChecked&&baseGoverning.value<=S.baseCapacity;
     var statuses="";
     if (baseChecked) statuses+='<div class="single-capacity-status ' + (baseOk?'is-ok':'is-bad') + '"><strong>' + (baseOk?'Applicable':'Exceeds capacity') + '</strong><span>Required vertical reaction at base point X0: ' + fmtForce(baseGoverning.value) + ' ' + U().force + (baseGoverning.scenario?' · '+baseGoverning.scenario:'') + '</span></div>';
-    if (horizontalChecked) statuses+='<div class="single-capacity-status ' + (horizontalOk?'is-ok':'is-bad') + '"><strong>' + (horizontalOk?'Applicable':'Exceeds capacity') + '</strong><span>Total horizontal load on one column: ' + fmtForce(horizontal.value) + ' ' + U().force + ' · Σ(RXi DL + RXi LL)' + (horizontal.scenario?' · '+horizontal.scenario:'') + '</span></div>';
+    if (horizontalChecked) statuses+='<div class="single-capacity-status ' + (horizontalOk?'is-ok':'is-bad') + '"><strong>' + (horizontalOk?'Applicable':'Exceeds capacity') + '</strong><span>Total horizontal load on one column: ' + fmtForce(horizontal.value) + ' ' + U().force + '<span class="capacity-formula"> · Σ(RXi DL + RXi LL)</span>' + (horizontal.scenario?' · '+horizontal.scenario:'') + '</span></div>';
     return '<section class="single-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div>'
       + '<div class="single-capacity-fields">'
       + '<label><span>Allowable vertical reaction at base point (X0)</span><div class="caprow"><input id="base-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (S.baseCapacity===null?'':S.baseCapacity) + '" placeholder="Base load capacity"><div class="unit">' + U().force + '</div></div></label>'
@@ -1194,6 +1194,11 @@
         basePoint.addEventListener("focus", showSchematicBasePreview);
         basePoint.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); }, 100); });
         basePoint.addEventListener("blur", function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); });
+      } else {
+        basePoint.addEventListener("click", function (event) {
+          event.stopPropagation();
+          if (singlePointSelection.detail) openSingleDetailModal(singlePointSelection.detail);
+        });
       }
     }
     if (basePreview && finePointer) basePreview.addEventListener("mouseleave", hideSchematicBasePreview);
@@ -1205,6 +1210,11 @@
         point.addEventListener("focus", show);
         point.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); }, 100); });
         point.addEventListener("blur", function () { if (!basePreview || !basePreview.matches(":hover")) hideSchematicBasePreview(); });
+      } else {
+        point.addEventListener("click", function (event) {
+          event.stopPropagation();
+          if (singlePointSelection.attachmentDetail) openSingleDetailModal(singlePointSelection.attachmentDetail);
+        });
       }
     });
     if (!finePointer) hideSchematicBasePreview();
@@ -1457,6 +1467,12 @@
   function renderProjectBar() {
     var root = projectRoot();
     if (!root) return;
+    // The landing page is only an entry/solution chooser. Project actions must
+    // never appear there, even when a previous result or saved project exists.
+    if (landingViewActive) {
+      root.innerHTML = "";
+      return;
+    }
     // Project actions appear together with Notes, only when a valid completed
     // result exists. An opened saved project retains its editing controls.
     var hasCompletedResult = loadsVisible() && (S.type === "boulder" ? !!boulderRow() : wallRows().length > 0);

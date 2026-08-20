@@ -500,6 +500,12 @@
         p.addEventListener("focus", function () { showPoint(p.getAttribute("data-point"), p.getAttribute("data-level") || ""); });
         p.addEventListener("mouseleave", function () { window.setTimeout(function () { if (!preview.matches(":hover")) preview.hidden = true; }, 100); });
         p.addEventListener("blur", function () { if (!preview.matches(":hover")) preview.hidden = true; });
+      } else {
+        p.addEventListener("click", function (event) {
+          event.stopPropagation();
+          var detail = p.getAttribute("data-point") === "base" ? baseDetail() : selectedDetail();
+          if (detail) openDetailModal(detail);
+        });
       }
     });
     if (finePointer) preview.addEventListener("mouseleave", function () { preview.hidden = true; });
