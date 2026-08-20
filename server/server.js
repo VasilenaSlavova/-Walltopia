@@ -78,7 +78,15 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
-app.use("/api/auth", authLimiter, require("./routes/auth"));
+// Count only credential-submission attempts. Session discovery (`GET /me`) is
+// called automatically on every page and must never lock a user out merely for
+// navigating around the site.
+app.use("/api/auth", (req, res, next) => {
+  const isCredentialAttempt = req.method === "POST"
+    && (req.path === "/login" || req.path === "/register");
+  if (isCredentialAttempt) return authLimiter(req, res, next);
+  next();
+}, require("./routes/auth"));
 // Engineering Support inquiries are nested under a project.
 app.use("/api/projects/:projectId/support-inquiries", require("./routes/questions"));
 app.use("/api/projects", require("./routes/projects"));
@@ -107,7 +115,10 @@ async function start() {
   // Start serving the frontend immediately. Database-backed API routes already
   // return 503 until MongoDB connects, so a slow Atlas connection must not make
   // the entire local website appear offline.
-  app.listen(PORT, "0.0.0.0", () => {
+  // Do not force an IPv4-only bind. With the host omitted Node uses the
+  // platform's unspecified dual-stack address when available, so `localhost`
+  // can connect immediately through ::1 while IPv4/LAN clients still work.
+  app.listen(PORT, () => {
     console.log(`[server] http://localhost:${PORT}`);
     const lan = [];
     const nets = os.networkInterfaces();

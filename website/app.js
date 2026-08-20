@@ -24,9 +24,19 @@
   var singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
   var columnPointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
   var CALCULATOR_DRAFT_KEY = "walltopia.calculator.draft.v1";
+  var CALCULATOR_SOLUTION_KEY = "walltopia.calculator.solution.v1";
+  var CALCULATOR_WELCOME_KEY = "walltopia.calculator.welcome.seen.v1";
+  // Keep this value stable for the lifetime of the page. Marking the visit as
+  // seen must not make the welcome banner disappear during an auth re-render.
+  var showFirstVisitWelcome = true;
+  try {
+    showFirstVisitWelcome = localStorage.getItem(CALCULATOR_WELCOME_KEY) !== "1";
+    if (showFirstVisitWelcome) localStorage.setItem(CALCULATOR_WELCOME_KEY, "1");
+  } catch (error) {}
   var schematicView = { scale: 1, panX: 0, panY: 0 };
   var mobileResultsWasReady = false;
   var mobileResultsAutoScrollEnabled = false;
+  var landingViewActive = false;
   var showMissingFlag = false;   // View loads pressed while inputs incomplete
 
   // ---- derive option sets ----
@@ -93,8 +103,17 @@
     } else { msg.hidden = true; msg.textContent = ""; }
   }
   function applyLayoutState() {
+    var showLanding = landingViewActive || !S.solutionPicked;
     var main = document.querySelector("main.layout");
-    if (main) main.classList.toggle("is-choosing", !S.solutionPicked);
+    if (main) {
+      main.classList.toggle("is-choosing", showLanding);
+      main.classList.toggle("is-initial-visual", !showLanding && !!S.solutionPicked && !loadsVisible());
+    }
+    var calculatorNavLink = document.querySelector('.topnav a[href="index.html"]');
+    if (calculatorNavLink) {
+      if (S.solutionPicked && !landingViewActive) calculatorNavLink.setAttribute("aria-current", "page");
+      else calculatorNavLink.removeAttribute("aria-current");
+    }
   }
 
   // ---- unit-aware formatting ----
@@ -105,7 +124,7 @@
     var s = Number(v).toFixed(d);
     return s.replace(/\.?0+$/, function (m) { return m.indexOf(".") === 0 ? "" : m; }) === "" ? s : s;
   }
-  function fmtLen(v) { return S.units === "EU" ? v + " m" : (Math.round(v * 3.28084 * 10) / 10) + " ft"; }
+  function fmtLen(v) { return S.units === "EU" ? v + " m" : Math.round(v * 3.28084) + " ft"; }
 
   // ---- record lookup ----
   function wallRows() { // rows for current wall + span + overhang, keyed by level
@@ -178,11 +197,13 @@
     document.getElementById("lbl-height").innerHTML =
       "Climbing-surface height <span class=\"hint\">(" + (S.units === "EU" ? "m" : "ft") + ")</span>";
     chips("chips-height", heights, selectedInputs.height ? S.height : null, function (v) {
+      var previousSchemes = S.type === "wall" ? (wallSchemes[S.height] || []) : [];
       S.height = v;
       selectedInputs.height = true;
       if (S.type === "wall") {
         var sch = wallSchemes[v];
         if (sch.indexOf(S.levels) < 0) S.levels = sch[sch.length - 1];
+        if (previousSchemes.length === 1 && sch.length > 1) selectedInputs.levels = false;
       }
       clampAndRender();
     }, function (v) { return S.units === "EU" ? v : (Math.round(v * 3.28084)); });
@@ -191,6 +212,13 @@
     var schemeField = document.getElementById("field-scheme");
     if (S.type === "wall") {
       var schemes = wallSchemes[S.height] || [];
+      // Once the user has chosen a height, a single available scheme is not a
+      // real decision. Select it automatically; keep multiple schemes neutral
+      // so the user still makes the choice explicitly.
+      if (selectedInputs.height && schemes.length === 1) {
+        S.levels = schemes[0];
+        selectedInputs.levels = true;
+      }
       schemeField.style.display = "";
       chips("chips-scheme", schemes, selectedInputs.levels ? S.levels : null, function (v) { S.levels = v; selectedInputs.levels = true; clampAndRender(); },
         function (v) { return v + (v === 1 ? " level" : " levels"); });
@@ -395,6 +423,8 @@
 
   function columnPointValues() {
     var row = selectedScenarioRow(), values = {};
+    values.RZ0DL = row ? factor(pick(row, "RZ0DL"), "DL") : 0;
+    values.RZ0LL = row ? factor(pick(row, "RZ0LL"), "LL") : 0;
     for (var level = 1; level <= columnLevelCount(); level++) {
       values["LX" + level + "DL"] = row ? factor(pick(row, "LX" + level + "DL"), "DL") : 0;
       values["LX" + level + "LL"] = row ? factor(pick(row, "LX" + level + "LL"), "LL") : 0;
@@ -432,7 +462,9 @@
   }
 
   function columnPointTableHtml(values) {
-    var rows = [], wall = S.type === "wall" ? DATA.walls[wallKey(S.height, S.levels)] : null;
+    var rows = [
+      { point:"RZ0", dl:"RZ0DL", ll:"RZ0LL", description:"Base point · vertical" }
+    ], wall = S.type === "wall" ? DATA.walls[wallKey(S.height, S.levels)] : null;
     for (var level = 1; level <= columnLevelCount(); level++) {
       var levelHeight = wall && wall.lhEU && wall.lhEU[level] !== undefined ? " · " + fmtLen(wall.lhEU[level]) : "";
       rows.push({ point:"LX" + level, dl:"LX" + level + "DL", ll:"LX" + level + "LL", description:"Building column at X" + level + levelHeight });
@@ -650,7 +682,7 @@
     var baseOk = baseChecked && baseRequired.value <= Number(base);
     var statuses = "";
     if (baseChecked) statuses += '<div class="single-capacity-status ' + (baseOk?'is-ok':'is-bad') + '"><strong>' + (baseOk?'Applicable':'Exceeds capacity') + '</strong><span>Required vertical reaction at column base: ' + fmtForce(baseRequired.value) + ' ' + U().force + (baseRequired.scenario?' \u00b7 '+baseRequired.scenario:'') + '</span></div>';
-    if (sideChecked) statuses += '<div class="single-capacity-status ' + (sideOk?'is-ok':'is-bad') + '"><strong>' + (sideOk?'Applicable':'Exceeds capacity') + '</strong><span>Required horizontal load on one column: ' + fmtForce(sideRequired.value) + ' ' + U().force + ' \u00b7 \u03a3(LXi DL + LXi LL)' + (sideRequired.scenario?' \u00b7 '+sideRequired.scenario:'') + '</span></div>';
+    if (sideChecked) statuses += '<div class="single-capacity-status ' + (sideOk?'is-ok':'is-bad') + '"><strong>' + (sideOk?'Applicable':'Exceeds capacity') + '</strong><span>Required horizontal load on one column: ' + fmtForce(sideRequired.value) + ' ' + U().force + (sideRequired.scenario?' \u00b7 '+sideRequired.scenario:'') + '</span></div>';
     return '<section class="single-capacity column-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div>'
       + '<div class="single-capacity-fields">'
       + '<label><span>Allowable vertical reaction at column base</span><div class="caprow"><input id="column-base-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (baseChecked?base:'') + '" placeholder="Base load capacity"><div class="unit">' + U().force + '</div></div></label>'
@@ -776,8 +808,10 @@
   function wireResultOptionTabs() {
     document.querySelectorAll("[data-result-option]").forEach(function (button) {
       button.addEventListener("click", function () {
+        landingViewActive = false;
         S.attachmentSolution = button.getAttribute("data-result-option");
         S.solutionPicked = true;
+        try { localStorage.setItem(CALCULATOR_SOLUTION_KEY, S.attachmentSolution); } catch (error) {}
         showMissingFlag = false;
         // The inputs panel appears now (Vasi #1) and which fields are required
         // changes with the option (#2.2), so rebuild the controls and results.
@@ -801,7 +835,7 @@
   // Title reflects the current selections; #3.1 fills the values in as they are chosen.
   function resultHeadHtml() {
     var u = U();
-    var typeLabel = selectedInputs.type ? (S.type === "wall" ? "Climbing wall" : "Boulder wall") : "Preliminary loads";
+    var typeLabel = selectedInputs.type ? (S.type === "wall" ? "Climbing wall" : "Boulder wall") : "New Project";
     var title = typeLabel + (selectedInputs.height ? " " + fmtLen(S.height) : "");
     var bits = [];
     if (S.type === "wall" && selectedInputs.levels) bits.push(S.levels + (S.levels === 1 ? " attachment level" : " attachment levels"));
@@ -809,7 +843,8 @@
     if (usesSpan() && selectedInputs.span) bits.push("span A = " + fmtLen(S.span));
     if (selectedInputs.overhang) bits.push("overhang X = " + fmtLen(S.overhang));
     bits.push((S.factored ? "factored" : "characteristic") + " values in " + u.force);
-    return '<div class="results-head"><div><p class="title">' + title + '</p><p class="sub">' + bits.join(" \u00b7 ") + '</p></div></div>';
+    var subHtml = selectedInputs.type ? '<p class="sub">' + bits.join(" \u00b7 ") + '</p>' : '';
+    return '<div class="results-head"><div><p class="title">' + title + '</p>' + subHtml + '</div></div>';
   }
 
   // Shown in place of the load table while the drawing is already on screen.
@@ -819,24 +854,49 @@
       + '<strong>' + (missing.length ? "Some inputs are still open" : "Loads are ready") + '</strong>'
       + '<span>' + (missing.length
           ? "Choose " + missing.map(function (k) { return FIELD_LABELS[k]; }).join(", ") + ", then press <b>View loads</b>."
-          : "Press <b>View loads</b> to calculate this configuration.") + '</span></div>';
+      : "Press <b>View loads</b> to calculate this configuration.") + '</span></div>';
+  }
+
+  function calculatorWelcomeHtml() {
+    var user = window.WTAuth && window.WTAuth.current ? window.WTAuth.current() : null;
+
+    var title = '<span class="welcome-title-line welcome-title-welcome">Welcome</span>'
+      + '<span class="welcome-title-line welcome-title-to"><i>to</i></span>'
+      + '<span class="welcome-title-line welcome-title-product"><b>Walltopia</b> '
+      + '<em>Preliminary Loads</em> <b>Calculator</b></span>';
+    var copy = '<span>Explore preliminary loads for your climbing-wall configuration and compare the available attachment solutions.</span>'
+      + '<span>Review the resulting forces, connection options and technical diagrams before continuing with your project.</span>';
+
+    if (!showFirstVisitWelcome && user) {
+      var fullName = String(user.name || "").trim();
+      var firstName = fullName ? fullName.split(/\s+/)[0] : "";
+      title = "Welcome back" + (firstName ? ", " + esc(firstName) : "") + ".";
+      copy = '<span>Continue with a new preliminary load check or choose the attachment solution that best matches your project.</span>';
+    }
+
+    return '<div class="calculator-welcome-banner"><i class="welcome-hold welcome-hold-top welcome-hold-top-left" aria-hidden="true"></i>'
+      + '<i class="welcome-hold welcome-hold-top welcome-hold-top-right" aria-hidden="true"></i>'
+      + '<strong>' + title + '</strong><p>' + copy + '</p></div>';
   }
 
   function renderResults() {
     var root = document.getElementById("result-root");
     applyLayoutState();
-    var picked = !!S.solutionPicked;
+    var picked = !!S.solutionPicked && !landingViewActive;
 
     // Vasi #1: before an option is chosen the screen shows only the two options.
     if (!picked) {
-      root.innerHTML = '<div class="results-reveal solution-chooser">'
+      root.innerHTML = calculatorWelcomeHtml() + '<div class="results-reveal solution-chooser">'
         + '<div class="results-head"><div><p class="title">Choose an attachment solution</p>'
         + '<p class="sub">Pick Option 1 or Option 2 to configure the inputs and see the drawing.</p></div></div>'
         + resultOptionTabsHtml()
-        + '<p class="result-solution-prompt">Option 1 connects the climbing wall directly to the existing structure.'
-        + ' Option 2 adds Walltopia support beams between the building columns.</p></div>';
+        + '<div class="result-solution-prompts">'
+        + '<p>Option 1 connects the climbing wall directly to the existing structure.</p>'
+        + '<p>Option 2 adds Walltopia support beams between the building columns.</p>'
+        + '</div></div>';
       wireResultOptionTabs();
       window.WTCalculatorPayload = null;
+      renderProjectBar();
       return;
     }
 
@@ -857,16 +917,29 @@
       ? (noEntry ? '<div class="loads-locked"><strong>No table entry for this combination</strong><span>Pick a different span or overhang.</span></div>' : '')
       : loadsLockedHtml();
 
+    var singleSection;
+    var beamsSection;
+    if (!revealed) {
+      singleSection = '<section class="single-point-section initial-visual-section" data-result-section="single"' + (singleActive ? '' : ' hidden') + '>'
+        + '<div class="initial-visual-only">' + schematicPanelHtml() + '</div></section>';
+      beamsSection = '<section class="single-point-section column-point-section initial-visual-section" data-result-section="beams"' + (beamsActive ? '' : ' hidden') + '>'
+        + '<div class="initial-visual-only"><div id="attachment-config-root" data-visual-only="true"></div></div></section>';
+    } else {
+      singleSection = '<section class="single-point-section" data-result-section="single"' + (singleActive ? '' : ' hidden') + '><div class="single-point-heading"><div><h2>Direct Single-Point Attachment</h2><p>The climbing wall is connected directly to the existing structure at individual attachment points.</p></div></div>'
+        + '<div class="single-point-grid' + (Number(S.levels) >= 3 ? ' is-three-levels' : '') + '"><div class="single-point-left">'
+        + (showTables ? singlePointTableHtml(values) : lockedNote) + singlePointConditionsHtml() + '</div>' + schematicPanelHtml() + '</div>'
+        + (showTables ? singleCapacityHtml() + notesHtml() : '') + '</section>';
+      beamsSection = '<section class="single-point-section column-point-section" data-result-section="beams"' + (beamsActive ? '' : ' hidden') + '><div class="single-point-heading"><div><h2>Walltopia Support Beams Between Building Columns</h2><p>Walltopia support beams are added between the existing building columns, and the climbing wall is attached to the beams.</p></div></div>'
+        + '<div class="column-point-body">' + (showTables ? columnPointTableHtml(columnValues) : lockedNote)
+        + columnPointConditionsHtml() + '<div id="attachment-config-root" data-visual-only="true"></div></div>'
+        + (showTables ? columnCapacityHtml() + notesHtml() : '') + '</section>';
+    }
     var html = '<div class="results-reveal">' + resultHeadHtml() + resultOptionTabsHtml()
-      + '<section class="single-point-section" data-result-section="single"' + (singleActive ? '' : ' hidden') + '><div class="single-point-heading"><div><h2>Direct Single-Point Attachment</h2><p>The climbing wall is connected directly to the existing structure at individual attachment points.</p></div></div>'
-      + '<div class="single-point-grid' + (Number(S.levels) >= 3 ? ' is-three-levels' : '') + '"><div class="single-point-left">'
-      + (showTables ? singlePointTableHtml(values) : lockedNote) + singlePointConditionsHtml() + '</div>' + schematicPanelHtml() + '</div>'
-      + (showTables ? singleCapacityHtml() + notesHtml() : '') + '</section>'
-      + '<section class="single-point-section column-point-section" data-result-section="beams"' + (beamsActive ? '' : ' hidden') + '><div class="single-point-heading"><div><h2>Walltopia Support Beams Between Building Columns</h2><p>Walltopia support beams are added between the existing building columns, and the climbing wall is attached to the beams.</p></div></div>'
-      + '<div class="column-point-body">' + (showTables ? columnPointTableHtml(columnValues) : lockedNote)
-      + columnPointConditionsHtml() + '<div id="attachment-config-root" data-visual-only="true"></div></div>'
-      + (showTables ? columnCapacityHtml() + notesHtml() : '') + '</section></div>';
+      + singleSection + beamsSection + '</div>';
     root.innerHTML = html;
+    // The project actions belong to the completed result and are rendered in
+    // the adjacent project-root immediately after the active section's Notes.
+    renderProjectBar();
     wireSchematicView();
     wireSinglePointControls();
     var calculatorPayload = { input: currentInput(), snapshot: currentSnapshot(),
@@ -1125,6 +1198,17 @@
     applyView();
   }
 
+  // Briefly highlight a dimension when a newly selected parameter changes it.
+  // Keep the flag alive across the immediate follow-up render while leaving
+  // the first drawing paint untouched.
+  var lastSchematicLabel = {};
+  function flashClass(key, text) {
+    var entry = lastSchematicLabel[key], now = Date.now();
+    if (!entry) { lastSchematicLabel[key] = { text: text, until: 0 }; return ""; }
+    if (entry.text !== text) { entry.text = text; entry.until = now + 900; }
+    return now < entry.until ? " is-value-flash" : "";
+  }
+
   function schematicSvg() {
     var wallHeight = Number(S.height) || 12;
     var overhang = Number(S.overhang) || 0;
@@ -1156,8 +1240,10 @@
     function xAt(z) { return baseX + overhangPx * z / wallHeight; }
     function yAt(z) { return groundY - drawingHeight * z / wallHeight; }
     function dimValue(m) {
-      return S.units === "EU" ? Math.round(m * 1000) + " mm" : (m * 3.28084).toFixed(1) + " ft";
+      return S.units === "EU" ? Math.round(m * 1000) + " mm" : Math.round(m * 3.28084) + " ft";
     }
+    var overhangText = selectedInputs.overhang ? 'X = ' + dimValue(overhang) : 'X';
+    var heightText = selectedInputs.height ? 'Climbing wall height = ' + dimValue(wallHeight) : 'Climbing wall height';
     var scenarioRow;
     if (S.type === "boulder") scenarioRow = boulderRow();
     else {
@@ -1179,13 +1265,15 @@
     }
     heights.forEach(function (z, i) {
       var n = i + 1, x = xAt(z), y = yAt(z), dimX = 142 - i * 18;
+      var zText = (selectedInputs.height && (S.type === "boulder" || selectedInputs.levels)) ? 'Z' + n + ' = ' + dimValue(z) : 'Z' + n;
       var rx = reaction("RX" + n);
-      attachments += '<line class="side-support" x1="' + attachmentPlaneX + '" y1="' + y + '" x2="' + x + '" y2="' + y + '"/><path class="side-anchor" d="M' + attachmentPlaneX + ' ' + (y-9) + 'v18l10-9z"/>';
+      var selectedForceAnchor = selectedInputs.force && n === Number(S.force);
+      attachments += '<line class="side-support" x1="' + attachmentPlaneX + '" y1="' + y + '" x2="' + x + '" y2="' + y + '"/><path class="side-anchor' + (selectedForceAnchor ? ' is-selected-force' : '') + '" d="M' + attachmentPlaneX + ' ' + (y-9) + 'v18l10-9z"><title>' + (selectedForceAnchor ? 'Selected maximum live-load level Z' + n : 'Attachment level Z' + n) + '</title></path>';
       attachmentPoints += '<circle class="side-attachment-detail-point' + (singlePointSelection.attachmentDetail ? '' : ' is-hidden') + '" data-side-level="' + n + '" cx="' + attachmentPlaneX + '" cy="' + y + '" r="7" tabindex="' + (singlePointSelection.attachmentDetail ? '0' : '-1') + '" role="button"><title>Attachment point X' + n + '</title></circle>';
       attachmentPointLabels += '<text class="side-point-label" x="' + (attachmentPlaneX + 12) + '" y="' + (y - 11) + '">X' + n + '</text>';
       if (showForces) forces += horizontalReaction('RX' + n, rx.ll, y - 8, 'll', y - 15)
         + horizontalReaction('RX' + n, rx.dl, y + 8, 'dl', y + 22);
-      heightDims += '<line class="side-extension" x1="' + dimX + '" y1="' + y + '" x2="' + attachmentPlaneX + '" y2="' + y + '"/><line class="side-dimension" x1="' + dimX + '" y1="' + groundY + '" x2="' + dimX + '" y2="' + y + '"/><path class="side-tick" d="M' + (dimX-5) + ' ' + (groundY+5) + 'l10-10M' + (dimX-5) + ' ' + (y+5) + 'l10-10"/><text class="side-dim-label" x="' + (dimX-8) + '" y="' + ((groundY+y)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (dimX-8) + ' ' + ((groundY+y)/2) + ')">' + ((selectedInputs.height && (S.type === "boulder" || selectedInputs.levels)) ? 'Z' + n + ' = ' + dimValue(z) : 'Z' + n) + '</text>';
+      heightDims += '<line class="side-extension" x1="' + dimX + '" y1="' + y + '" x2="' + attachmentPlaneX + '" y2="' + y + '"/><line class="side-dimension" x1="' + dimX + '" y1="' + groundY + '" x2="' + dimX + '" y2="' + y + '"/><path class="side-tick" d="M' + (dimX-5) + ' ' + (groundY+5) + 'l10-10M' + (dimX-5) + ' ' + (y+5) + 'l10-10"/><text class="side-dim-label' + flashClass('z' + n, zText) + '" x="' + (dimX-8) + '" y="' + ((groundY+y)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (dimX-8) + ' ' + ((groundY+y)/2) + ')">' + zText + '</text>';
     });
     var rx0 = reaction("RX0"), rz0 = reaction("RZ0");
     function baseHorizontal(value, y, kind, labelY) {
@@ -1207,11 +1295,11 @@
       + '<line class="side-attachment-plane" x1="' + attachmentPlaneX + '" y1="' + topY + '" x2="' + attachmentPlaneX + '" y2="' + groundY + '"/>'
       + '<line class="side-surface" x1="' + baseX + '" y1="' + groundY + '" x2="' + topX + '" y2="' + topY + '"/>'
       + attachments + forces + heightDims
-      + '<line class="side-extension" x1="' + attachmentPlaneX + '" y1="' + topY + '" x2="' + attachmentPlaneX + '" y2="30"/><line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + topX + '" y2="30"/><line class="side-dimension" x1="' + attachmentPlaneX + '" y1="30" x2="' + topX + '" y2="30"/><path class="side-tick" d="M' + (attachmentPlaneX-5) + ' 35l10-10M' + (topX-5) + ' 35l10-10"/><text class="side-overhang-label" x="' + ((attachmentPlaneX+topX)/2) + '" y="20" text-anchor="middle">' + (selectedInputs.overhang ? 'X = ' + dimValue(overhang) : 'X') + ' (overhang)</text>'
-      + '<line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + wallDimX + '" y2="' + topY + '"/><line class="side-dimension" x1="' + wallDimX + '" y1="' + groundY + '" x2="' + wallDimX + '" y2="' + topY + '"/><path class="side-tick" d="M' + (wallDimX-5) + ' ' + (groundY+5) + 'l10-10M' + (wallDimX-5) + ' ' + (topY+5) + 'l10-10"/><text class="side-wall-height" x="' + (wallDimX+15) + '" y="' + ((groundY+topY)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (wallDimX+15) + ' ' + ((groundY+topY)/2) + ')">' + (selectedInputs.height ? 'Climbing wall height = ' + dimValue(wallHeight) : 'Climbing wall height') + '</text>'
+      + '<line class="side-extension" x1="' + attachmentPlaneX + '" y1="' + topY + '" x2="' + attachmentPlaneX + '" y2="30"/><line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + topX + '" y2="30"/><line class="side-dimension" x1="' + attachmentPlaneX + '" y1="30" x2="' + topX + '" y2="30"/><path class="side-tick" d="M' + (attachmentPlaneX-5) + ' 35l10-10M' + (topX-5) + ' 35l10-10"/><text class="side-overhang-label' + flashClass('overhang', overhangText) + '" x="' + ((attachmentPlaneX+topX)/2) + '" y="20" text-anchor="middle">' + overhangText + ' (overhang)</text>'
+      + '<line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + wallDimX + '" y2="' + topY + '"/><line class="side-dimension" x1="' + wallDimX + '" y1="' + groundY + '" x2="' + wallDimX + '" y2="' + topY + '"/><path class="side-tick" d="M' + (wallDimX-5) + ' ' + (groundY+5) + 'l10-10M' + (wallDimX-5) + ' ' + (topY+5) + 'l10-10"/><text class="side-wall-height' + flashClass('height', heightText) + '" x="' + (wallDimX+15) + '" y="' + ((groundY+topY)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (wallDimX+15) + ' ' + ((groundY+topY)/2) + ')">' + heightText + '</text>'
       + '<text class="side-surface-label" x="' + surfaceLabelX + '" y="' + surfaceLabelY + '" text-anchor="middle" transform="rotate(' + surfaceAngle + ' ' + surfaceLabelX + ' ' + surfaceLabelY + ')">Climbing surface</text>'
       + (showForces && S.type === "wall" ? baseHorizontal(rx0.ll, 446, 'll', 488) + baseHorizontal(rx0.dl, 462, 'dl', 504) : "")
-      + (showForces ? baseVertical(rz0.ll, 197, 'll', 340) + baseVertical(rz0.dl, 213, 'dl', 354) : "")
+      + (showForces ? baseVertical(rz0.ll, 172, 'll', 340) + baseVertical(rz0.dl, 188, 'dl', 354) : "")
       + '<g class="side-axis"><line x1="26" y1="468" x2="26" y2="420" marker-end="url(#side-force-arrow)"/><line x1="26" y1="468" x2="80" y2="468" marker-end="url(#side-force-arrow)"/><text x="5" y="420">+Z</text><text x="65" y="488">+X</text></g>'
       + attachmentPointLabels
       + '<text class="side-point-label" x="' + (baseX - 12) + '" y="' + (groundY - 13) + '" text-anchor="end">X0</text>'
@@ -1242,6 +1330,7 @@
   function currentInput() {
     return { units: S.units, type: S.type, height: S.height, levels: S.levels,
       overhang: S.overhang, span: S.span, force: S.force, factored: S.factored,
+      selected: Object.assign({}, selectedInputs),
       capacity: S.cap, baseCapacity: S.baseCapacity, sideCapacity: S.sideCapacity,
       columnCapacities: S.columnCapacities,
       attachmentSolution: S.attachmentSolution, solutionPicked: S.solutionPicked, loadsRequested: S.loadsRequested,
@@ -1250,7 +1339,7 @@
       columnSupportingStructure: columnPointSelection.support, columnAttachmentDetail: columnPointSelection.attachmentDetail,
       columnSupportingSlab: columnPointSelection.slab, columnBaseDetail: columnPointSelection.detail };
   }
-  function applyInput(inp) {
+  function applyInput(inp, source) {
     if (!inp) return;
     ["units", "type", "height", "levels", "overhang", "span", "force", "factored"].forEach(function (k) {
       if (inp[k] !== undefined && inp[k] !== null) S[k] = inp[k];
@@ -1276,9 +1365,21 @@
     var factoredInput = document.getElementById("chk-factored");
     if (capacityInput) capacityInput.value = S.cap === null ? "" : S.cap;
     if (factoredInput) factoredInput.checked = !!S.factored;
-    selectedInputs.units = selectedInputs.type = selectedInputs.height = selectedInputs.span = selectedInputs.overhang = true;
-    selectedInputs.levels = S.type === "wall";
-    selectedInputs.force = S.type === "wall";
+    if (source === "draft") {
+      // Draft values include internal defaults used to draw the preview. Only
+      // fields explicitly chosen by the user may look selected after reload.
+      var restoredSelection = inp.selected && typeof inp.selected === "object" ? inp.selected : {};
+      Object.keys(selectedInputs).forEach(function (key) {
+        selectedInputs[key] = !!restoredSelection[key];
+      });
+    } else {
+      // A saved project represents a completed input set. Older project records
+      // do not contain the draft-only `selected` map, so keep their established
+      // behaviour and open them with their inputs selected.
+      selectedInputs.units = selectedInputs.type = selectedInputs.height = selectedInputs.span = selectedInputs.overhang = true;
+      selectedInputs.levels = S.type === "wall";
+      selectedInputs.force = S.type === "wall";
+    }
   }
   function currentSnapshot() {
     var u = U(), gov = govColumnLoad();
@@ -1312,7 +1413,17 @@
         }
       }
     }
-    return { title: title, unit: u.force, governing: Math.round(gov.value * 100) / 100, verdict: verdict, levelForces: levelForces, levelDeadForces: levelDeadForces };
+    var baseScenario;
+    if (S.type === "boulder") baseScenario = boulderRow();
+    else {
+      var baseRows = wallRows();
+      baseScenario = baseRows.filter(function (row) { return row.lvl === S.force; })[0] || baseRows[0];
+    }
+    var baseReactions = baseScenario ? {
+      rz0LL: factor(pick(baseScenario, "RZ0LL"), "LL"),
+      rz0DL: factor(pick(baseScenario, "RZ0DL"), "DL")
+    } : { rz0LL: 0, rz0DL: 0 };
+    return { title: title, unit: u.force, governing: Math.round(gov.value * 100) / 100, verdict: verdict, levelForces: levelForces, levelDeadForces: levelDeadForces, baseReactions: baseReactions };
   }
 
   var projectRoot = function () { return document.getElementById("project-root"); };
@@ -1331,6 +1442,13 @@
   function renderProjectBar() {
     var root = projectRoot();
     if (!root) return;
+    // Project actions appear together with Notes, only when a valid completed
+    // result exists. An opened saved project retains its editing controls.
+    var hasCompletedResult = loadsVisible() && (S.type === "boulder" ? !!boulderRow() : wallRows().length > 0);
+    if (!P && !hasCompletedResult) {
+      root.innerHTML = "";
+      return;
+    }
     var user = window.WTAuth && window.WTAuth.current();
     if (!user) {
       root.innerHTML =
@@ -1468,7 +1586,7 @@
       await window.WTAuth.requireAuth("login");
       var res = await window.WTApi.getProject(id);
       P = res.project;
-      applyInput(P.input);
+      applyInput(P.input, "project");
       // Opening a saved project is not entering a new calculation: the design was
       // already decided when it was saved, so the results open straight away. The
       // server also drops `solutionPicked` (it is not in the stored-input
@@ -1500,7 +1618,12 @@
   if (!new URLSearchParams(location.search).get("project")) {
     try {
       var savedDraft = JSON.parse(localStorage.getItem(CALCULATOR_DRAFT_KEY) || "null");
-      if (savedDraft && typeof savedDraft === "object") applyInput(savedDraft);
+      if (savedDraft && typeof savedDraft === "object") applyInput(savedDraft, "draft");
+      var savedSolution = localStorage.getItem(CALCULATOR_SOLUTION_KEY);
+      if (savedSolution === "single" || savedSolution === "beams") {
+        S.attachmentSolution = savedSolution;
+        S.solutionPicked = true;
+      }
     } catch (error) {}
   }
   document.getElementById("chk-factored").addEventListener("change", function (e) {
@@ -1515,7 +1638,9 @@
     mobileResultsAutoScrollEnabled = true;
     clampAndRender();
   });
-  function resetCalculator(scrollToTop) {
+  function resetCalculator(scrollToTop, preserveSolution) {
+    var retainedSolution = preserveSolution && S.solutionPicked ? S.attachmentSolution : "single";
+    var retainedSolutionPicked = !!(preserveSolution && S.solutionPicked);
     S.units = "EU";
     S.type = "wall";
     S.height = 12;
@@ -1528,9 +1653,10 @@
     S.baseCapacity = null;
     S.sideCapacity = null;
     S.columnCapacities = {};
-    S.attachmentSolution = "single";
-    S.solutionPicked = false;
+    S.attachmentSolution = retainedSolution;
+    S.solutionPicked = retainedSolutionPicked;
     S.loadsRequested = false;
+    landingViewActive = false;
     showMissingFlag = false;
     singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
     columnPointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
@@ -1542,13 +1668,35 @@
     history.replaceState(null, "", "index.html");
     clampAndRender();
     try { localStorage.removeItem(CALCULATOR_DRAFT_KEY); } catch (error) {}
+    try {
+      if (retainedSolutionPicked) localStorage.setItem(CALCULATOR_SOLUTION_KEY, retainedSolution);
+      else localStorage.removeItem(CALCULATOR_SOLUTION_KEY);
+    } catch (error) {}
     if (scrollToTop) {
       document.querySelector(".panel").scrollTo({ top: 0, behavior: "smooth" });
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }
   document.getElementById("reset-calculator").addEventListener("click", function () {
-    resetCalculator(true);
+    resetCalculator(true, true);
+  });
+  var calculatorHomeLink = document.getElementById("calculator-home-link");
+  if (calculatorHomeLink) calculatorHomeLink.addEventListener("click", function (event) {
+    event.preventDefault();
+    // The brand is the calculator's home action: return to the welcome and
+    // solution chooser without discarding the in-progress calculator state.
+    landingViewActive = true;
+    history.replaceState(null, "", "index.html");
+    renderResults();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  var calculatorNavLink = document.querySelector('.topnav a[href="index.html"]');
+  if (calculatorNavLink) calculatorNavLink.addEventListener("click", function (event) {
+    if (!landingViewActive) return;
+    event.preventDefault();
+    landingViewActive = false;
+    clampAndRender();
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
   clampAndRender();
 
@@ -1556,6 +1704,7 @@
   if (window.WTAuth) {
     window.WTAuth.onChange(function (user) {
       if (!user) P = null; // logged out — drop the editing context so guests can't hit protected actions
+      if (landingViewActive || !S.solutionPicked) renderResults();
       renderProjectBar();
     });
     window.addEventListener("wtauth:logout", function () { resetCalculator(true); });

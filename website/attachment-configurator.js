@@ -4,7 +4,7 @@
   var root = document.getElementById("attachment-config-root");
   var DETAIL_PATH = "manuals/attachment/details/";
   var ATTACHMENT_DRAFT_KEY = "walltopia.attachment.draft.v1";
-  var state = { type: "wall", slab: "solid-concrete-slab", baseDetailId: null, support: "concrete-wall", detail: null, input: { height: 12, levels: 3 }, levelForces: [], deadLevelForces: [], forceUnit: "kN", columnSlab: null, columnBaseDetail: null, showForces: true, selected: {}, view: { scale: 1, panX: 0, panY: 0 }, viewContext: null };
+  var state = { type: "wall", slab: "solid-concrete-slab", baseDetailId: null, support: "concrete-wall", detail: null, input: { height: 12, levels: 3 }, levelForces: [], deadLevelForces: [], baseReactions: {}, forceUnit: "kN", columnSlab: null, columnBaseDetail: null, showForces: true, selected: {}, view: { scale: 1, panX: 0, panY: 0 }, viewContext: null };
   try {
     var attachmentDraft = JSON.parse(localStorage.getItem(ATTACHMENT_DRAFT_KEY) || "null");
     if (attachmentDraft && typeof attachmentDraft === "object") {
@@ -20,6 +20,7 @@
     state.detail = state.input.columnAttachmentDetail || null;
     state.levelForces = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.levelForces) || [];
     state.deadLevelForces = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.levelDeadForces) || [];
+    state.baseReactions = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.baseReactions) || {};
     state.forceUnit = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.unit) || state.forceUnit;
     state.columnSlab = state.input.columnSupportingSlab || null;
     state.columnBaseDetail = state.input.columnBaseDetail || null;
@@ -136,27 +137,29 @@
   function slabGlyphSvg(cx, cy, slab, interactive) {
     // When a base detail is chosen the slab behaves like the red attachment
     // points: hover shows the preview card, click opens the full detail (Vasi).
-    var gAttrs = interactive
-      ? ' class="acs-slab attachment-point" data-point="base" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Supporting slab base detail"'
-      : ' class="acs-slab"';
+    var gAttrs = ' class="acs-slab"';
+    if (!interactive) {
+      return '<g' + gAttrs + '><text class="acs-column-point-label" x="' + (cx + 18) + '" y="' + (cy - 20) + '">X0</text></g>';
+    }
     if (!slab) {
-      return '<g' + gAttrs + '><circle class="acs-slab-placeholder" cx="' + cx + '" cy="' + cy + '" r="12"/>'
-        + '<text class="acs-slab-label" x="' + cx + '" y="' + (cy - 18) + '" text-anchor="middle">Select the supporting slab</text></g>';
+      return '<g' + gAttrs + '><circle class="acs-column-point acs-x0-point" cx="' + cx + '" cy="' + cy + '" r="8" tabindex="0" role="button" aria-label="Show X0 vertical reactions">'
+        + '<title>Attachment point X0</title></circle>'
+        + '<text class="acs-column-point-label" x="' + (cx + 18) + '" y="' + (cy - 20) + '">X0</text></g>';
     }
-    var w = 92, h = 16, x = cx - w / 2, y = cy - 3;
-    var body = '<rect class="acs-slab-body" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>';
-    var fill = "";
-    if (slab === "hollow") {
-      for (var k = 0; k < 5; k++) fill += '<circle class="acs-slab-core" cx="' + (x + 13 + k * 16.5) + '" cy="' + (y + h / 2) + '" r="4.4"/>';
-    } else {
-      var hs = "";
-      for (var m = 0; m < 6; m++) hs += "M" + (x + 6 + m * 15) + " " + (y + h) + "l9 -" + h;
-      fill = '<path class="acs-slab-hatch" d="' + hs + '"/>';
-    }
-    var label = slab === "hollow" ? "Hollow panel slab" : "Solid concrete slab";
-    return '<g' + gAttrs + '>' + body + fill
-      + '<text class="acs-slab-label" x="' + cx + '" y="' + (cy - 16) + '" text-anchor="middle">' + label + '</text>'
-      + (interactive ? '<title>Supporting slab base detail · click to preview</title>' : '') + '</g>';
+    return '<g' + gAttrs + '><circle class="acs-column-point acs-x0-point' + (interactive ? ' attachment-point' : '') + '"'
+      + (interactive ? ' data-point="base" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment point X0 base detail"' : '')
+      + ' cx="' + cx + '" cy="' + cy + '" r="8"/>'
+      + '<text class="acs-column-point-label" x="' + (cx + 18) + '" y="' + (cy - 20) + '">X0</text>'
+      + (interactive ? '<title>Attachment point X0 · supporting slab base detail</title>' : '') + '</g>';
+  }
+
+  // Track dimension text so only a newly added or changed value flashes.
+  var lastLabelText = {};
+  function flashClass(key, text) {
+    var entry = lastLabelText[key], now = Date.now();
+    if (!entry) { lastLabelText[key] = { text: text, until: 0 }; return ""; }
+    if (entry.text !== text) { entry.text = text; entry.until = now + 900; }
+    return now < entry.until ? " is-value-flash" : "";
   }
 
   function acsSvg(levels) {
@@ -181,6 +184,12 @@
     var levelYs = zValues.map(function (z) { return baseY - z * scaleZ; });
     var visualOnly = root && root.getAttribute("data-visual-only") === "true";
     var sel = state.selected || {};
+    function dimensionText(m) {
+      return state.input.units === "USA" ? Math.round(m * 3.28084) + " ft" : m.toFixed(1) + " m";
+    }
+    var spanText = sel.span ? 'A = ' + dimensionText(v.a) : 'A';
+    var overhangText = sel.overhang ? 'X = ' + dimensionText(v.x) : 'X';
+    var heightText = sel.height ? 'H = ' + dimensionText(v.height) : 'H';
     var hasAttachmentDetail = !!selectedDetail();
     var circles = visualOnly ? "" : '<circle class="attachment-point base-point" data-point="base" cx="' + mid + '" cy="' + baseY + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Base attachment detail"/>';
     var beams = "", labels = "", dims = "", pointMarkers = "";
@@ -194,9 +203,12 @@
         if (!visualOnly && hasAttachmentDetail) circles += '<circle class="attachment-point" data-point="level" data-level="' + (i+1) + '" cx="' + cx + '" cy="' + cy + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment level ' + (i+1) + ' detail"/>';
       });
       if (visualOnly) {
-        pointMarkers += '<circle class="acs-column-point' + (hasAttachmentDetail ? ' attachment-point' : '') + '"'
-          + (hasAttachmentDetail ? ' data-point="level" data-level="' + (i+1) + '" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment point X' + (i+1) + ' detail"' : '')
-          + ' cx="' + mid + '" cy="' + y + '" r="8"><title>Attachment point X' + (i+1) + (hasAttachmentDetail ? ' · ' + selectedDetail().id : '') + '</title></circle>';
+        var selectedForcePoint = state.selected.force && (i + 1) === Number(state.input.force);
+        if (hasAttachmentDetail) {
+          pointMarkers += '<circle class="acs-column-point' + (selectedForcePoint ? ' is-selected-force' : '') + ' attachment-point"'
+            + ' data-point="level" data-level="' + (i+1) + '" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment point X' + (i+1) + ' detail"'
+            + ' cx="' + mid + '" cy="' + y + '" r="8"><title>' + (selectedForcePoint ? 'Selected maximum live-load level X' + (i+1) : 'Attachment point X' + (i+1)) + ' · ' + selectedDetail().id + '</title></circle>';
+        }
         var pointLabelY = y - (i === levelYs.length - 1 ? 22 : 12);
         pointMarkers += '<text class="acs-column-point-label" x="' + (mid+18) + '" y="' + pointLabelY + '">X' + (i+1) + '</text>';
       }
@@ -226,7 +238,8 @@
       var lower = i === 0 ? baseY : levelYs[i-1] - 12;
       dims += '<line class="acs-dim" x1="658" y1="' + dimY + '" x2="658" y2="' + lower + '"/>';
       dims += '<line class="acs-guide" x1="640" y1="' + dimY + '" x2="670" y2="' + dimY + '"/>';
-      dims += '<text class="acs-dim-label" x="674" y="' + ((dimY+lower)/2+4) + '">' + ((sel.height && (state.type === 'boulder' || sel.levels)) ? 'Z' + (i+1) + ' = ' + (i === 0 ? zValues[0] : zValues[i]-zValues[i-1]).toFixed(1) + ' m' : 'Z' + (i+1)) + '</text>';
+      var zText = (sel.height && (state.type === 'boulder' || sel.levels)) ? 'Z' + (i+1) + ' = ' + dimensionText(i === 0 ? zValues[0] : zValues[i]-zValues[i-1]) : 'Z' + (i+1);
+      dims += '<text class="acs-dim-label' + flashClass('z' + (i+1), zText) + '" x="674" y="' + ((dimY+lower)/2+4) + '">' + zText + '</text>';
     });
     var contourTop = [[150,420],[270,435],[365,410],[460,428],[585,400]];
     var shift = Math.max(18, v.x * 24);
@@ -239,15 +252,119 @@
     var spanGap = 14;
     // Offset the extra columns to the outer quarter of each bay so they clear the
     // centred "A = ..." span labels and the Lx force labels (Vasi #5).
-    var leftBayX = left + (mid - left) * 0.26, rightBayX = right - (right - mid) * 0.26;
-    var slabAndColumns = visualOnly
+    var leftBayX = left + (mid - left) * 0.26, rightBayX = right - (right - mid) * 0.36;
+    var outerLeftBayX = left + (mid - left) * 0.12;
+    var outerRightBayX = right - (right - mid) * 0.22;
+    var supportMainForeground = [];
+    var supportNodeForeground = [];
+    function supportFramePath(x, direction, hideMiddleBeamNode) {
+      function beamYAt(levelY, px) {
+        return levelY + 12 + (-24) * ((px - left) / (right - left));
+      }
+      var lowerBeamY = beamYAt(levelYs[0], x);
+      var lowerJointX = x;
+      var lowerJointY = lowerBeamY + 25;
+      var upperJointX = x + direction * 42;
+      // Line 1 points vertically down from the lower joint. Line 2 is set to
+      // 75 degrees above the horizontal, producing the requested 165-degree
+      // inner angle between the two members.
+      var upperJointY = lowerJointY - Math.abs(upperJointX - lowerJointX) * Math.tan(75 * Math.PI / 180);
+      // Add one brace for every Walltopia beam. The attachment points progress
+      // slightly to the right at the higher levels, matching the two-level
+      // geometry while allowing the frame to continue naturally to level 3.
+      var bracePoints = levelYs.map(function (levelY, index) {
+        var ratio = levelYs.length > 1 ? index / (levelYs.length - 1) : 0;
+        var beamPointX = lowerJointX + direction * (-12 + 20 * ratio);
+        return {
+          beam: { x: beamPointX, y: beamYAt(levelY, beamPointX) },
+          target: .2 + .8 * ratio
+        };
+      });
+      // For a 120-degree inner angle, the acute angle between each connection
+      // and the main diagonal is 60 degrees. Project the beam point onto the
+      // diagonal and choose the 60-degree solution nearest the intended level.
+      function jointFor120(point, targetFraction) {
+        var dx = upperJointX - lowerJointX, dy = upperJointY - lowerJointY;
+        var length = Math.sqrt(dx * dx + dy * dy);
+        var ux = dx / length, uy = dy / length;
+        var px = point.x - lowerJointX, py = point.y - lowerJointY;
+        var projection = px * ux + py * uy;
+        var perpendicular = Math.abs(px * uy - py * ux);
+        var offset = perpendicular / Math.tan(60 * Math.PI / 180);
+        var first = projection - offset, second = projection + offset;
+        var target = targetFraction * length;
+        var candidates = [first, second].map(function (along) {
+          return { along: along, x: lowerJointX + ux * along, y: lowerJointY + uy * along };
+        });
+        // Choose the intersection below and inward from the beam point. This
+        // makes the visibly enclosed angle (not its supplementary neighbour)
+        // the requested 120 degrees.
+        var preferred = candidates.filter(function (candidate) {
+          return candidate.y > point.y && (candidate.x - point.x) * direction > 0;
+        });
+        var pool = preferred.length ? preferred : candidates;
+        pool.sort(function (a, b) { return Math.abs(a.along - target) - Math.abs(b.along - target); });
+        return { x: pool[0].x, y: pool[0].y };
+      }
+      bracePoints.forEach(function (brace) {
+        brace.joint = jointFor120(brace.beam, brace.target);
+      });
+      var topJointPoint = bracePoints[bracePoints.length - 1].joint;
+      var groundX = lowerJointX;
+      var groundPointY = groundY(groundX);
+      function technicalMember(x1, y1, x2, y2, memberClass) {
+        var d = 'M' + x1 + ' ' + y1 + 'L' + x2 + ' ' + y2;
+        return '<path class="acs-support-member-outline ' + memberClass + '" d="' + d + '"/>'
+          + '<path class="acs-support-member-core ' + memberClass + '" d="' + d + '"/>';
+      }
+      var bracePaths = bracePoints.map(function (brace, index) {
+        return technicalMember(brace.beam.x, brace.beam.y, brace.joint.x, brace.joint.y, 'acs-support-brace acs-support-line-' + (index + 3));
+      }).join('');
+      var jointNodes = bracePoints.map(function (brace, index) {
+        var hideBeamNode = hideMiddleBeamNode && levelYs.length === 3 && index === 1;
+        return (hideBeamNode ? '' : '<circle class="acs-support-node" cx="' + brace.beam.x + '" cy="' + brace.beam.y + '" r="2.8"/>')
+          + '<circle class="acs-support-node" cx="' + brace.joint.x + '" cy="' + brace.joint.y + '" r="2.8"/>';
+      }).join('');
+      supportMainForeground.push(technicalMember(lowerJointX, lowerJointY, topJointPoint.x, topJointPoint.y, 'acs-support-line-2'));
+      supportNodeForeground.push(jointNodes);
+      return technicalMember(groundX, groundPointY, lowerJointX, lowerJointY, 'acs-support-line-1')
+        + bracePaths
+        + '<path class="acs-support-foot" d="M' + (groundX - 7) + ' ' + groundPointY + 'L' + (groundX + 7) + ' ' + groundPointY + '"/>';
+    }
+    function baseVerticalReaction(value, x, kind) {
+      var numeric = Number(value), zero = !isFinite(numeric) || Math.abs(numeric) < .000001;
+      var down = numeric < 0;
+      var start = down ? baseY - 46 : baseY - 20;
+      var end = down ? baseY - 20 : baseY - 46;
+      return '<line class="acs-base-reaction is-' + kind + (zero ? ' is-zero' : '') + '" x1="' + x + '" y1="' + start + '" x2="' + x + '" y2="' + end + '"' + (zero ? '' : ' marker-end="url(#config-base-arrow-' + kind + ')"') + '/>';
+    }
+    function baseReactionValue(value) {
+      var numeric = Number(value);
+      return isFinite(numeric) ? numeric.toFixed(2) : '—';
+    }
+    var baseReactionArrows = visualOnly && state.showForces
+      ? '<g class="acs-base-reactions">'
+        + '<rect class="acs-base-reaction-box" x="' + (mid - 205) + '" y="' + (baseY - 61) + '" width="132" height="49"/>'
+        + '<text class="acs-base-reaction-label is-ll" x="' + (mid - 195) + '" y="' + (baseY - 42) + '">RZ0 LL = ' + baseReactionValue(state.baseReactions.rz0LL) + ' ' + state.forceUnit + '</text>'
+        + '<text class="acs-base-reaction-label is-dl" x="' + (mid - 195) + '" y="' + (baseY - 23) + '">RZ0 DL = ' + baseReactionValue(state.baseReactions.rz0DL) + ' ' + state.forceUnit + '</text>'
+        + baseVerticalReaction(state.baseReactions.rz0LL, mid - 57, 'll')
+        + baseVerticalReaction(state.baseReactions.rz0DL, mid - 43, 'dl') + '</g>'
+      : '';
+    var supportFrames = visualOnly
       ? '<g class="acs-extra-columns">'
-        + '<line class="acs-extra-column" x1="' + leftBayX + '" y1="' + (topY + 8) + '" x2="' + leftBayX + '" y2="' + baseY + '"/>'
-        + '<line class="acs-extra-column" x1="' + rightBayX + '" y1="' + (topY + 8) + '" x2="' + rightBayX + '" y2="' + baseY + '"/></g>'
-        + slabGlyphSvg(mid, baseY, state.columnSlab, !!(state.columnSlab && state.columnBaseDetail))
+        + supportFramePath(outerLeftBayX, 1, false)
+        + supportFramePath(leftBayX, 1, true)
+        + supportFramePath(rightBayX, 1, false)
+        + supportFramePath(outerRightBayX, 1, true)
+        + supportMainForeground.join('')
+        + supportNodeForeground.join('')
+        + '</g>'
+      : '';
+    var basePointGlyph = visualOnly
+      ? slabGlyphSvg(mid, baseY, state.columnSlab, !!(state.columnSlab && state.columnBaseDetail))
       : '';
     return '<svg viewBox="0 0 900 550" role="img" aria-label="Interactive ACS geometry and attachment points">'
-      + '<defs><marker id="config-arrow-ll" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="acs-ll-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="config-arrow-dl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="acs-dl-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="acs-tech-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="acs-tech-arrowhead" d="M0 0L10 5L0 10Z"/></marker></defs>'
+      + '<defs><marker id="config-arrow-ll" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="acs-ll-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="config-arrow-dl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="acs-dl-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="config-base-arrow-ll" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path class="acs-ll-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="config-base-arrow-dl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path class="acs-dl-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="acs-tech-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="acs-tech-arrowhead" d="M0 0L10 5L0 10Z"/></marker></defs>'
       + '<path class="acs-full-roof" d="M' + left + " " + (topY+12) + 'L' + right + " " + (topY-12) + '"/><path class="acs-full-ground" d="M95 ' + (baseY+13) + 'L650 ' + (baseY-14) + '"/>'
       + '<rect class="acs-full-column" x="' + (left-7) + '" y="' + (topY+12) + '" width="14" height="' + (baseY-(topY+12)+12) + '"/><rect class="acs-full-column" x="' + (mid-7) + '" y="' + topY + '" width="14" height="' + (baseY-topY) + '"/><rect class="acs-full-column" x="' + (right-7) + '" y="' + (topY-12) + '" width="14" height="' + (baseY-(topY-12)-12) + '"/>'
       + beams + pointMarkers + labels
@@ -256,13 +373,13 @@
       + '<polygon class="acs-contour" points="' + polygon + '"/><polyline class="acs-top-contour" points="' + contourTop.map(function(p){return p.join(",");}).join(" ") + '"/>'
       + '<g class="acs-contour-notes"><text class="acs-contour-label" x="78" y="510"><tspan x="78">Climbing surface</tspan><tspan class="is-strong" x="78" dy="14">bottom contour</tspan></text><path d="M145 493L132 458L' + contourTop[0][0] + ' ' + contourTop[0][1] + '" marker-end="url(#acs-tech-arrow)"/>'
       + '<text class="acs-contour-label" x="650" y="510"><tspan x="650">Climbing surface</tspan><tspan class="is-strong" x="650" dy="14">top contour</tspan></text><path d="M650 493L635 470L' + contourBottom[4][0] + ' ' + contourBottom[4][1] + '" marker-end="url(#acs-tech-arrow)"/></g>'
-      + '<g class="acs-span-on-wall"><line x1="' + (left+spanGap) + '" y1="' + (groundY(left+spanGap)-10) + '" x2="' + (mid-spanGap) + '" y2="' + (groundY(mid-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + ((left+mid)/2) + '" y="' + (groundY((left+mid)/2)-18) + '" text-anchor="middle">' + (sel.span ? 'A = ' + v.a.toFixed(1) + ' m' : 'A') + '</text>'
-      + '<line x1="' + (mid+spanGap) + '" y1="' + (groundY(mid+spanGap)-10) + '" x2="' + (right-spanGap) + '" y2="' + (groundY(right-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + ((mid+right)/2) + '" y="' + (groundY((mid+right)/2)-18) + '" text-anchor="middle">' + (sel.span ? 'A = ' + v.a.toFixed(1) + ' m' : 'A') + '</text><title>A — span between columns</title></g>'
-      + '<g class="acs-contour-dim"><line x1="' + contourDimTop[0] + '" y1="' + contourDimTop[1] + '" x2="' + contourDimBottom[0] + '" y2="' + contourDimBottom[1] + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + (contourDimBottom[0]+14) + '" y="' + ((contourDimTop[1]+contourDimBottom[1])/2+4) + '">' + (sel.overhang ? 'X = ' + v.x.toFixed(1) + ' m' : 'X') + '</text></g>'
-      + dims + '<line class="acs-dim" x1="760" y1="' + (topY-12) + '" x2="760" y2="' + baseY + '"/><text class="acs-dim-label" x="775" y="' + ((topY+baseY)/2) + '">' + (sel.height ? 'H = ' + v.height.toFixed(0) + ' m' : 'H') + '</text>'
+      + '<g class="acs-span-on-wall"><line x1="' + (left+spanGap) + '" y1="' + (groundY(left+spanGap)-10) + '" x2="' + (mid-spanGap) + '" y2="' + (groundY(mid-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text class="' + flashClass('spanL', spanText).slice(1) + '" x="' + ((left+mid)/2) + '" y="' + (groundY((left+mid)/2)-18) + '" text-anchor="middle">' + spanText + '</text>'
+      + '<line x1="' + (mid+spanGap) + '" y1="' + (groundY(mid+spanGap)-10) + '" x2="' + (right-spanGap) + '" y2="' + (groundY(right-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text class="' + flashClass('spanR', spanText).slice(1) + '" x="' + ((mid+right)/2) + '" y="' + (groundY((mid+right)/2)-18) + '" text-anchor="middle">' + spanText + '</text><title>A — span between columns</title></g>'
+      + '<g class="acs-contour-dim"><line x1="' + contourDimTop[0] + '" y1="' + contourDimTop[1] + '" x2="' + contourDimBottom[0] + '" y2="' + contourDimBottom[1] + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text class="' + flashClass('overhang', overhangText).slice(1) + '" x="' + (contourDimBottom[0]+14) + '" y="' + ((contourDimTop[1]+contourDimBottom[1])/2+4) + '">' + overhangText + '</text></g>'
+      + dims + '<line class="acs-dim" x1="760" y1="' + (topY-12) + '" x2="760" y2="' + baseY + '"/><text class="acs-dim-label' + flashClass('height', heightText) + '" x="775" y="' + ((topY+baseY)/2) + '">' + heightText + '</text>'
       + '<g class="acs-axis" transform="translate(820 410)"><path d="M0 0V-48" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L42-9" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L25 32" marker-end="url(#acs-tech-arrow)"/><text x="-7" y="-55">Z</text><text x="48" y="-7">Y</text><text x="28" y="43">X</text></g>'
       + (hasAttachmentDetail ? '<text class="acs-caption" x="28" y="30">Hover, focus or click a red point to preview its attachment detail</text>' : '')
-      + slabAndColumns + circles + '</svg>';
+      + supportFrames + baseReactionArrows + basePointGlyph + circles + '</svg>';
   }
   function previewHtml(d, label) {
     return '<span class="attachment-label">' + label + '</span><h3>' + d.id + " · " + d.title.split("·")[0].trim() + '</h3>' + detailImage(d, "attachment-preview-image") + '<button class="attachment-full-trigger" type="button" data-full-detail="' + d.id + '">View full detail</button>';
@@ -384,11 +501,14 @@
     var zoomValue = root.querySelector("#attachment-zoom-value");
     if (!viewport || !svg) return;
     var viewContext = root.getAttribute("data-visual-only") === "true" ? "results" : "configurator";
-    var resetScale = viewContext === "results" ? 1.12 : 1;
-    var resetPanY = viewContext === "results" ? -20 : 0;
-    if (state.viewContext !== viewContext) {
+    // A 1:1 SVG viewBox is the true fit-to-frame state. The previous 1.12
+    // results preset cropped the outer labels and coordinate axis.
+    var resetScale = 1;
+    var resetPanY = 0;
+    if (state.viewContext !== viewContext || state.viewBaseScale !== resetScale) {
       state.view = { scale: resetScale, panX: 0, panY: resetPanY };
       state.viewContext = viewContext;
+      state.viewBaseScale = resetScale;
     }
     function applyView() {
       var viewWidth = 900 / state.view.scale;
@@ -466,6 +586,7 @@
     state.detail = state.input.columnAttachmentDetail || null;
     state.levelForces = (e.detail.snapshot && e.detail.snapshot.levelForces) || [];
     state.deadLevelForces = (e.detail.snapshot && e.detail.snapshot.levelDeadForces) || [];
+    state.baseReactions = (e.detail.snapshot && e.detail.snapshot.baseReactions) || {};
     state.forceUnit = (e.detail.snapshot && e.detail.snapshot.unit) || state.forceUnit;
     state.columnSlab = state.input.columnSupportingSlab || null;
     state.columnBaseDetail = state.input.columnBaseDetail || null;
@@ -483,6 +604,7 @@
       state.detail = state.input.columnAttachmentDetail || null;
       state.levelForces = (payload.snapshot && payload.snapshot.levelForces) || [];
       state.deadLevelForces = (payload.snapshot && payload.snapshot.levelDeadForces) || [];
+      state.baseReactions = (payload.snapshot && payload.snapshot.baseReactions) || {};
       state.forceUnit = (payload.snapshot && payload.snapshot.unit) || state.forceUnit;
       state.columnSlab = state.input.columnSupportingSlab || null;
       state.columnBaseDetail = state.input.columnBaseDetail || null;

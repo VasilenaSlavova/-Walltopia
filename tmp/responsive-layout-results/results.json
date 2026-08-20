@@ -1,0 +1,146 @@
+[
+  {
+    "viewport": "390x844",
+    "welcome": {
+      "bodyOverflowX": false,
+      "mastheadOverflowX": false,
+      "shortVisible": false,
+      "fullVisible": true,
+      "bannerInsideViewport": true
+    },
+    "calculator": {
+      "bodyOverflowX": false,
+      "panelExtraBottom": 17,
+      "panelHeight": 736,
+      "resultHeight": 702,
+      "viewportInsideResults": true
+    },
+    "failures": []
+  },
+  {
+    "viewport": "768x1024",
+    "welcome": {
+      "bodyOverflowX": false,
+      "mastheadOverflowX": false,
+      "shortVisible": false,
+      "fullVisible": true,
+      "bannerInsideViewport": true
+    },
+    "calculator": {
+      "bodyOverflowX": false,
+      "panelExtraBottom": 19,
+      "panelHeight": 669,
+      "resultHeight": 836,
+      "viewportInsideResults": true
+    },
+    "failures": []
+  },
+  {
+    "viewport": "960x900",
+    "welcome": {
+      "bodyOverflowX": false,
+      "mastheadOverflowX": false,
+      "shortVisible": false,
+      "fullVisible": true,
+      "bannerInsideViewport": true
+    },
+    "calculator": {
+      "bodyOverflowX": false,
+      "panelExtraBottom": 19,
+      "panelHeight": 669,
+      "resultHeight": 712,
+      "viewportInsideResults": true
+    },
+    "failures": []
+  },
+  {
+    "viewport": "1024x768",
+    "welcome": {
+      "bodyOverflowX": false,
+      "mastheadOverflowX": false,
+      "shortVisible": true,
+      "fullVisible": false,
+      "bannerInsideViewport": true
+    },
+    "calculator": {
+      "bodyOverflowX": false,
+      "panelExtraBottom": 0,
+      "panelHeight": 684,
+      "resultHeight": 684,
+      "viewportInsideResults": true
+    },
+    "failures": []
+  },
+  {
+    "viewport": "1280x800",
+    "welcome": {
+      "bodyOverflowX": false,
+      "mastheadOverflowX": false,
+      "shortVisible": true,
+      "fullVisible": false,
+      "bannerInsideViewport": true
+    },
+    "calculator": {
+      "bodyOverflowX": false,
+      "panelExtraBottom": 32,
+      "panelHeight": 716,
+      "resultHeight": 716,
+      "viewportInsideResults": true
+    },
+    "failures": []
+  },
+  {
+    "viewport": "1366x768",
+    "welcome": {
+      "bodyOverflowX": false,
+      "mastheadOverflowX": false,
+      "shortVisible": false,
+      "fullVisible": true,
+      "bannerInsideViewport": true
+    },
+    "calculator": {
+      "bodyOverflowX": false,
+      "panelExtraBottom": -49,
+      "panelHeight": 656,
+      "resultHeight": 656,
+      "viewportInsideResults": true
+    },
+    "failures": []
+  },
+  {
+    "viewport": "1440x900",
+    "welcome": {
+      "bodyOverflowX": false,
+      "mastheadOverflowX": false,
+      "shortVisible": false,
+      "fullVisible": true,
+      "bannerInsideViewport": true
+    },
+    "calculator": {
+      "bodyOverflowX": false,
+      "panelExtraBottom": 16,
+      "panelHeight": 721,
+      "resultHeight": 788,
+      "viewportInsideResults": true
+    },
+    "failures": []
+  },
+  {
+    "viewport": "1920x1080",
+    "welcome": {
+      "bodyOverflowX": false,
+      "mastheadOverflowX": false,
+      "shortVisible": false,
+      "fullVisible": true,
+      "bannerInsideViewport": true
+    },
+    "calculator": {
+      "bodyOverflowX": false,
+      "panelExtraBottom": 16,
+      "panelHeight": 721,
+      "resultHeight": 968,
+      "viewportInsideResults": true
+    },
+    "failures": []
+  }
+]
