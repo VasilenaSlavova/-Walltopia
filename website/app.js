@@ -1646,7 +1646,9 @@
 
   // ---- init ----
   S.height = 12; S.levels = 3; S.span = 6; S.overhang = 1; S.force = 1;
-  if (!new URLSearchParams(location.search).get("project")) {
+  // Restore an in-progress draft only when returning to the calculator view.
+  // A fresh entry through the landing page must start visually unselected.
+  if (!new URLSearchParams(location.search).get("project") && !landingViewActive) {
     try {
       var savedDraft = JSON.parse(localStorage.getItem(CALCULATOR_DRAFT_KEY) || "null");
       if (savedDraft && typeof savedDraft === "object") applyInput(savedDraft, "draft");

@@ -364,8 +364,12 @@
       : '';
     var supportBaseDetailPoints = visualOnly && state.columnSlab && state.columnBaseDetail
       ? supportBasePoints.map(function (point) {
-          return '<circle class="acs-column-point attachment-point acs-support-base-detail-point" data-point="base" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Supporting slab base detail at X0" cx="' + point.x + '" cy="' + point.y + '" r="8"><title>Supporting slab base detail · ' + state.columnBaseDetail + '</title></circle>'
-            + '<text class="acs-column-point-label acs-support-base-detail-label" x="' + (point.x + 11) + '" y="' + (point.y - 20) + '">X0</text>';
+          return '<circle class="acs-column-point attachment-point acs-support-base-detail-point" data-point="base" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Supporting slab base detail at X0" cx="' + point.x + '" cy="' + point.y + '" r="8"><title>Supporting slab base detail · ' + state.columnBaseDetail + '</title></circle>';
+        }).join('')
+      : '';
+    var supportBaseLabels = visualOnly
+      ? supportBasePoints.map(function (point) {
+          return '<text class="acs-column-point-label acs-support-base-detail-label" x="' + (point.x + 11) + '" y="' + (point.y - 20) + '">X0</text>';
         }).join('')
       : '';
     var basePointGlyph = visualOnly
@@ -388,7 +392,7 @@
       + dims + '<line class="acs-dim" x1="760" y1="' + (topY-12) + '" x2="760" y2="' + baseY + '"/><text class="acs-dim-label' + flashClass('height', heightText) + '" x="775" y="' + ((topY+baseY)/2) + '">' + heightText + '</text>'
       + '<g class="acs-axis" transform="translate(820 410)"><path d="M0 0V-48" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L42-9" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L25 32" marker-end="url(#acs-tech-arrow)"/><text x="-7" y="-55">Z</text><text x="48" y="-7">Y</text><text x="28" y="43">X</text></g>'
       + (hasAttachmentDetail ? '<text class="acs-caption" x="28" y="30">Hover, focus or click a red point to preview its attachment detail</text>' : '')
-      + supportFrames + baseReactionArrows + basePointGlyph + supportBaseDetailPoints + circles + '</svg>';
+      + supportFrames + baseReactionArrows + basePointGlyph + supportBaseLabels + supportBaseDetailPoints + circles + '</svg>';
   }
   function previewHtml(d, label) {
     return '<span class="attachment-label">' + label + '</span><h3>' + d.id + " · " + d.title.split("·")[0].trim() + '</h3>' + detailImage(d, "attachment-preview-image") + '<button class="attachment-full-trigger" type="button" data-full-detail="' + d.id + '">View full detail</button>';
