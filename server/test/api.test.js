@@ -77,7 +77,10 @@ async function call(method, path, body, withCookie = true) {
       name: "Gym A — 12m wall",
       tags: ["gym", "eu", "gym"], // dupe should collapse
       properties: [{ key: "Client", value: "Acme" }, { key: "City", value: "Sofia" }],
-      input: { units: "EU", type: "wall", height: 12, levels: 3, span: 6, overhang: 1, force: 1 },
+      input: { units: "EU", type: "wall", height: 12, levels: 3, span: 6, overhang: 1, force: 1,
+        attachmentSolution: "single", solutionPicked: true, loadsRequested: true,
+        loadsRequestedBySolution: { single: true, beams: false }, supportingSlab: "solid", baseDetail: "CF-02",
+        supportingStructure: "concrete-wall", attachmentDetail: "CW-03" },
       snapshot: { title: "Climbing wall 12 m", unit: "kN", governing: 14.01, verdict: "neutral" },
     };
     r = await call("POST", "/api/projects", payload);
@@ -85,6 +88,8 @@ async function call(method, path, body, withCookie = true) {
     const pid = r.json.project.id;
     ok(r.json.project.tags.length === 2, "tags deduped");
     ok(r.json.project.properties.length === 2, "custom properties stored");
+    ok(r.json.project.input.baseDetail === "CF-02" && r.json.project.input.attachmentDetail === "CW-03", "attachment selections stored");
+    ok(r.json.project.input.loadsRequestedBySolution.single === true && r.json.project.input.loadsRequestedBySolution.beams === false, "per-option result state stored");
 
     // list + filters
     ok((await call("GET", "/api/projects")).json.projects.length === 1, "list returns project");

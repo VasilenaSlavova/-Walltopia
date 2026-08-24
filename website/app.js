@@ -23,10 +23,24 @@
   var selectedInputs = { units: false, type: false, height: false, levels: false, span: false, overhang: false, force: false };
   var singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
   var columnPointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
+  var loadsRequestedBySolution = { single: false, beams: false };
   var CALCULATOR_DRAFT_KEY = "walltopia.calculator.draft.v1";
   var CALCULATOR_SOLUTION_KEY = "walltopia.calculator.solution.v1";
   var CALCULATOR_WELCOME_KEY = "walltopia.calculator.welcome.seen.v1";
   var CALCULATOR_VIEW_KEY = "walltopia.calculator.view.v1";
+  var CALCULATOR_RETURN_STATE_KEY = "walltopia.calculator.return-state.v1";
+  var ACTIVE_PROJECT_KEY = "walltopia.calculator.active-project.v1";
+  var initialPageParams = new URLSearchParams(location.search);
+  var newProjectRequested = initialPageParams.get("new") === "1";
+  if (newProjectRequested) {
+    try {
+      localStorage.removeItem(CALCULATOR_DRAFT_KEY);
+      localStorage.removeItem(CALCULATOR_SOLUTION_KEY);
+      sessionStorage.removeItem(ACTIVE_PROJECT_KEY);
+      sessionStorage.removeItem(CALCULATOR_RETURN_STATE_KEY);
+      sessionStorage.setItem(CALCULATOR_VIEW_KEY, "calculator");
+    } catch (error) {}
+  }
   // Keep this value stable for the lifetime of the page. Marking the visit as
   // seen must not make the welcome banner disappear during an auth re-render.
   var showFirstVisitWelcome = true;
@@ -41,6 +55,18 @@
   // A new tab begins on the landing screen. Refreshing that tab preserves the
   // current view, so an in-progress calculator does not jump back to landing.
   try { landingViewActive = sessionStorage.getItem(CALCULATOR_VIEW_KEY) !== "calculator"; } catch (error) {}
+  if (newProjectRequested) history.replaceState(null, "", "index.html");
+  var restoringProjectOnStart = false;
+  if (!landingViewActive) {
+    try {
+      restoringProjectOnStart = !!(new URLSearchParams(location.search).get("project")
+        || sessionStorage.getItem(ACTIVE_PROJECT_KEY));
+    } catch (error) {}
+  }
+  if (restoringProjectOnStart) {
+    var restoringLayout = document.querySelector("main.layout");
+    if (restoringLayout) restoringLayout.classList.add("is-restoring-project");
+  }
   var showMissingFlag = false;   // View loads pressed while inputs incomplete
 
   // ---- derive option sets ----
@@ -150,7 +176,7 @@
       var b = document.createElement("button");
       b.type = "button"; b.textContent = it.label;
       b.setAttribute("aria-pressed", String(it.value === cur));
-      b.onclick = function () { mobileResultsAutoScrollEnabled = true; S.loadsRequested = false; onPick(it.value); };
+      b.onclick = function () { mobileResultsAutoScrollEnabled = true; onPick(it.value); };
       el.appendChild(b);
     });
   }
@@ -161,7 +187,7 @@
       var b = document.createElement("button");
       b.type = "button"; b.textContent = labelFn ? labelFn(v) : v;
       b.setAttribute("aria-pressed", String(v === cur));
-      b.onclick = function () { mobileResultsAutoScrollEnabled = true; S.loadsRequested = false; onPick(v); };
+      b.onclick = function () { mobileResultsAutoScrollEnabled = true; onPick(v); };
       el.appendChild(b);
     });
   }
@@ -597,13 +623,14 @@
     var horizontal=totalHorizontalReaction(), horizontalChecked=S.sideCapacity!==null&&!isNaN(S.sideCapacity), horizontalOk=horizontalChecked&&horizontal.value<=S.sideCapacity;
     var baseGoverning=governingRZ0(), baseChecked=S.baseCapacity!==null, baseOk=baseChecked&&baseGoverning.value<=S.baseCapacity;
     var statuses="";
-    if (baseChecked) statuses+='<div class="single-capacity-status ' + (baseOk?'is-ok':'is-bad') + '"><strong>' + (baseOk?'Applicable':'Exceeds capacity') + '</strong><span>Required vertical reaction at base point X0: ' + fmtForce(baseGoverning.value) + ' ' + U().force + (baseGoverning.scenario?' · '+baseGoverning.scenario:'') + '</span></div>';
-    if (horizontalChecked) statuses+='<div class="single-capacity-status ' + (horizontalOk?'is-ok':'is-bad') + '"><strong>' + (horizontalOk?'Applicable':'Exceeds capacity') + '</strong><span>Total horizontal load on one column: ' + fmtForce(horizontal.value) + ' ' + U().force + '<span class="capacity-formula"> · Σ(RXi DL + RXi LL)</span>' + (horizontal.scenario?' · '+horizontal.scenario:'') + '</span></div>';
+    if (baseChecked) statuses+='<div class="single-capacity-status is-base ' + (baseOk?'is-ok':'is-bad') + '"><strong>' + (baseOk?'Applicable':'Exceeds capacity') + '</strong><span>Required vertical reaction at base point X0: ' + fmtForce(baseGoverning.value) + ' ' + U().force + '</span></div>';
+    if (horizontalChecked) statuses+='<div class="single-capacity-status is-horizontal ' + (horizontalOk?'is-ok':'is-bad') + '"><strong>' + (horizontalOk?'Applicable':'Exceeds capacity') + '</strong><span>Total horizontal load on one column: ' + fmtForce(horizontal.value) + ' ' + U().force + '</span></div>';
+    var statusRow = statuses ? '<div class="single-capacity-results">' + statuses + '</div>' : '';
     return '<section class="single-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div>'
       + '<div class="single-capacity-fields">'
       + '<label><span>Allowable vertical reaction at base point (X0)</span><div class="caprow"><input id="base-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (S.baseCapacity===null?'':S.baseCapacity) + '" placeholder="Base load capacity"><div class="unit">' + U().force + '</div></div></label>'
       + '<label><span>Allowable total horizontal load</span><div class="caprow"><input id="side-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (horizontalChecked?S.sideCapacity:'') + '" placeholder="Side load capacity"><div class="unit">' + U().force + '</div></div></label>'
-      + '<button class="cap-check-btn" id="single-capacity-submit" type="button">Check capacity</button></div>' + statuses + '</section>';
+      + '<button class="cap-check-btn" id="single-capacity-submit" type="button">Check capacity</button></div>' + statusRow + '</section>';
   }
 
   function columnPointConditionsHtml() {
@@ -685,13 +712,14 @@
     var sideOk = sideChecked && sideRequired.value <= Number(side);
     var baseOk = baseChecked && baseRequired.value <= Number(base);
     var statuses = "";
-    if (baseChecked) statuses += '<div class="single-capacity-status ' + (baseOk?'is-ok':'is-bad') + '"><strong>' + (baseOk?'Applicable':'Exceeds capacity') + '</strong><span>Required vertical reaction at column base: ' + fmtForce(baseRequired.value) + ' ' + U().force + (baseRequired.scenario?' \u00b7 '+baseRequired.scenario:'') + '</span></div>';
-    if (sideChecked) statuses += '<div class="single-capacity-status ' + (sideOk?'is-ok':'is-bad') + '"><strong>' + (sideOk?'Applicable':'Exceeds capacity') + '</strong><span>Required horizontal load on one column: ' + fmtForce(sideRequired.value) + ' ' + U().force + (sideRequired.scenario?' \u00b7 '+sideRequired.scenario:'') + '</span></div>';
+    if (baseChecked) statuses += '<div class="single-capacity-status is-base ' + (baseOk?'is-ok':'is-bad') + '"><strong>' + (baseOk?'Applicable':'Exceeds capacity') + '</strong><span>Required vertical reaction at column base: ' + fmtForce(baseRequired.value) + ' ' + U().force + '</span></div>';
+    if (sideChecked) statuses += '<div class="single-capacity-status is-horizontal ' + (sideOk?'is-ok':'is-bad') + '"><strong>' + (sideOk?'Applicable':'Exceeds capacity') + '</strong><span>Required horizontal load on one column: ' + fmtForce(sideRequired.value) + ' ' + U().force + '</span></div>';
+    var statusRow = statuses ? '<div class="single-capacity-results">' + statuses + '</div>' : '';
     return '<section class="single-capacity column-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div>'
       + '<div class="single-capacity-fields">'
       + '<label><span>Allowable vertical reaction at column base</span><div class="caprow"><input id="column-base-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (baseChecked?base:'') + '" placeholder="Base load capacity"><div class="unit">' + U().force + '</div></div></label>'
       + '<label><span>Allowable total horizontal load</span><div class="caprow"><input id="column-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (sideChecked?side:'') + '" placeholder="Side load capacity"><div class="unit">' + U().force + '</div></div></label>'
-      + '<button class="cap-check-btn" id="column-capacity-submit" type="button">Check capacity</button></div>' + statuses + '</section>';
+      + '<button class="cap-check-btn" id="column-capacity-submit" type="button">Check capacity</button></div>' + statusRow + '</section>';
   }
 
   function refreshSingleCapacity() {
@@ -708,9 +736,14 @@
   function wireSingleCapacityControls(root) {
     if (!root) return;
     var submit=root.querySelector("#single-capacity-submit");
+    var capacityInputs=[root.querySelector("#base-capacity-input"),root.querySelector("#side-capacity-input")].filter(Boolean);
+    capacityInputs.forEach(function(input){input.addEventListener("input",function(){var row=input.closest(".caprow");if(row)row.classList.remove("is-capacity-missing");});});
     if (submit) submit.addEventListener("click",function () {
       var base=root.querySelector("#base-capacity-input"), side=root.querySelector("#side-capacity-input");
       var baseRaw=base?base.value.trim():"", sideRaw=side?side.value.trim():"";
+      var hasEmpty=false;
+      [base,side].forEach(function(input){if(!input)return;var missing=input.value.trim()==="";var row=input.closest(".caprow");if(row)row.classList.toggle("is-capacity-missing",missing);if(missing)hasEmpty=true;});
+      if (hasEmpty) return;
       if (baseRaw!=="" && (!isFinite(Number(baseRaw)) || Number(baseRaw)<0)) return;
       if (sideRaw!=="" && (!isFinite(Number(sideRaw)) || Number(sideRaw)<0)) return;
       if (baseRaw!=="") S.baseCapacity=Number(baseRaw);
@@ -726,6 +759,7 @@
     holder.innerHTML = singlePointConditionsHtml();
     current.replaceWith(holder.firstElementChild);
     wireSingleConditionControls();
+    renderProjectBar();
     try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
   }
 
@@ -766,6 +800,7 @@
     if (window.WTAttachmentConfiguratorRefresh) {
       window.WTAttachmentConfiguratorRefresh({ input: currentInput(), snapshot: currentSnapshot() });
     }
+    renderProjectBar();
     try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
   }
 
@@ -800,10 +835,14 @@
     wireColumnConditionControls(document.querySelector(".column-conditions") || document);
     wireSingleCapacityControls(document.querySelector(".single-point-section:not(.column-point-section) .single-capacity"));
     var columnSubmit=document.getElementById("column-capacity-submit");
+    [document.getElementById("column-base-capacity-input"),document.getElementById("column-capacity-input")].filter(Boolean).forEach(function(input){input.addEventListener("input",function(){var row=input.closest(".caprow");if(row)row.classList.remove("is-capacity-missing");});});
     if (columnSubmit) columnSubmit.addEventListener("click",function () {
       var baseInput=document.getElementById("column-base-capacity-input");
       var sideInput=document.getElementById("column-capacity-input");
       var baseRaw=baseInput?baseInput.value.trim():"", sideRaw=sideInput?sideInput.value.trim():"";
+      var hasEmpty=false;
+      [baseInput,sideInput].forEach(function(input){if(!input)return;var missing=input.value.trim()==="";var row=input.closest(".caprow");if(row)row.classList.toggle("is-capacity-missing",missing);if(missing)hasEmpty=true;});
+      if (hasEmpty) return;
       var next={};
       if (baseRaw!=="" && isFinite(Number(baseRaw)) && Number(baseRaw)>=0) next.base=Number(baseRaw);
       if (sideRaw!=="" && isFinite(Number(sideRaw)) && Number(sideRaw)>=0) next.total=Number(sideRaw);
@@ -815,17 +854,37 @@
   function wireResultOptionTabs() {
     document.querySelectorAll("[data-result-option]").forEach(function (button) {
       button.addEventListener("click", function () {
+        var hadVisibleLoads = loadsVisible();
+        var nextSolution = button.getAttribute("data-result-option");
+        if (landingViewActive) {
+          // The welcome chooser starts a genuinely new calculation. Discard
+          // any previous project/draft state, but open the reset calculator
+          // with the option the user has just selected.
+          resetCalculator(false, false, nextSolution);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+        loadsRequestedBySolution[S.attachmentSolution] = !!S.loadsRequested;
         landingViewActive = false;
         try { sessionStorage.setItem(CALCULATOR_VIEW_KEY, "calculator"); } catch (error) {}
-        S.attachmentSolution = button.getAttribute("data-result-option");
+        S.attachmentSolution = nextSolution;
         S.solutionPicked = true;
-        S.loadsRequested = false;
+        S.loadsRequested = nextSolution === "single" && hadVisibleLoads
+          ? true
+          : !!loadsRequestedBySolution[S.attachmentSolution];
+        if (S.loadsRequested) loadsRequestedBySolution[S.attachmentSolution] = true;
         try { localStorage.setItem(CALCULATOR_SOLUTION_KEY, S.attachmentSolution); } catch (error) {}
-        showMissingFlag = false;
+        // Moving from completed Option 1 results to Option 2 introduces the
+        // required column span A. Highlight it immediately when it has not yet
+        // been selected, using the same missing-input treatment as View loads.
+        showMissingFlag = (hadVisibleLoads || S.loadsRequested) && missingInputs().length > 0;
         // The inputs panel appears now (Vasi #1) and which fields are required
         // changes with the option (#2.2), so rebuild the controls and results.
         var scrollY = window.scrollY;
         clampAndRender();
+        if (hadVisibleLoads && nextSolution === "single") {
+          markProjectSaveRequirements(projectSaveMissing());
+        }
         window.scrollTo(0, scrollY);
         try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
       });
@@ -847,8 +906,11 @@
   function resultHeadHtml() {
     var u = U();
     var typeLabel = selectedInputs.type ? (S.type === "wall" ? "Climbing wall" : "Boulder wall") : "New Project";
-    var title = typeLabel + (selectedInputs.height ? " " + fmtLen(S.height) : "");
+    var title = P && P.name
+      ? esc(P.name)
+      : typeLabel + (selectedInputs.height ? " " + fmtLen(S.height) : "");
     var bits = [];
+    if (P && P.name && selectedInputs.type) bits.push(typeLabel + (selectedInputs.height ? " " + fmtLen(S.height) : ""));
     if (S.type === "wall" && selectedInputs.levels) bits.push(S.levels + (S.levels === 1 ? " attachment level" : " attachment levels"));
     if (S.type === "boulder") bits.push("single attachment");
     if (usesSpan() && selectedInputs.span) bits.push("span A = " + fmtLen(S.span));
@@ -897,14 +959,17 @@
 
     // Vasi #1: before an option is chosen the screen shows only the two options.
     if (!picked) {
-      root.innerHTML = (landingViewActive ? calculatorWelcomeHtml() : "") + '<div class="results-reveal solution-chooser">'
-        + '<div class="results-head"><div><p class="title">Choose an attachment solution</p>'
-        + '<p class="sub">Pick Option 1 or Option 2 to configure the inputs and see the drawing.</p></div></div>'
-        + resultOptionTabsHtml()
-        + '<div class="result-solution-prompts">'
-        + '<p>Option 1 connects the climbing wall directly to the existing structure.</p>'
-        + '<p>Option 2 adds Walltopia support beams between the building columns.</p>'
-        + '</div></div>';
+      var chooserIntro = '<div class="results-head"><div><p class="title">Choose an attachment solution</p>'
+        + '<p class="sub">Pick Option 1 or Option 2 to configure the inputs and see the drawing.</p></div></div>';
+      var chooserPrompts = landingViewActive
+        ? '<div class="result-solution-prompts">'
+          + '<p>Option 1 connects the climbing wall directly to the existing structure.</p>'
+          + '<p>Option 2 adds Walltopia support beams between the building columns.</p>'
+          + '</div>'
+        : '';
+      root.innerHTML = (landingViewActive ? calculatorWelcomeHtml() : "")
+        + '<div class="results-reveal solution-chooser">'
+        + chooserIntro + resultOptionTabsHtml() + chooserPrompts + '</div>';
       wireResultOptionTabs();
       window.WTCalculatorPayload = null;
       renderProjectBar();
@@ -957,7 +1022,9 @@
       selected: Object.assign({}, selectedInputs), showForces: revealed };
     window.WTCalculatorPayload = calculatorPayload;
     window.dispatchEvent(new CustomEvent("wtcalculatorchange", { detail: calculatorPayload }));
-    try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
+    // Persist immediately after every calculator render. In particular, VIEW
+    // LOADS must survive Refresh even in browsers that skip `pagehide`.
+    persistCalculatorState();
     if (shouldAutoScroll) {
       mobileResultsAutoScrollEnabled = false;
       window.requestAnimationFrame(function () {
@@ -1313,7 +1380,7 @@
     function baseVertical(value, x, kind, labelY) {
       var negative = value < 0, zero = Math.abs(value) < .000001;
       var start = negative ? 376 : 436, end = negative ? 436 : 376;
-      return '<line class="side-reaction is-' + kind + (zero ? ' is-zero' : '') + '" x1="' + x + '" y1="' + start + '" x2="' + x + '" y2="' + end + '"' + (zero ? '' : ' marker-end="url(#side-force-' + kind + ')"') + '/><text class="side-reaction-label side-rz0-label is-' + kind + '" x="226" y="' + labelY + '" text-anchor="end">RZ0 ' + kind.toUpperCase() + ' = ' + fmtForce(value) + ' ' + U().force + '</text>';
+      return '<line class="side-reaction is-' + kind + (zero ? ' is-zero' : '') + '" x1="' + x + '" y1="' + start + '" x2="' + x + '" y2="' + end + '"' + (zero ? '' : ' marker-end="url(#side-force-' + kind + ')"') + '/><text class="side-reaction-label side-rz0-label is-' + kind + '" x="188" y="' + labelY + '" text-anchor="middle">RZ0 ' + kind.toUpperCase() + ' = ' + fmtForce(value) + ' ' + U().force + '</text>';
     }
     return '<svg viewBox="0 0 ' + svgWidth + ' 520" role="img" aria-label="Dynamic climbing wall side elevation">'
       + '<defs><marker id="side-arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M1 1L9 5L1 9" fill="none" stroke="currentColor" stroke-width="1.5"/></marker><marker id="side-force-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z"/></marker><marker id="side-force-ll" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#ec1c24"/></marker><marker id="side-force-dl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#111111"/></marker></defs>'
@@ -1325,7 +1392,7 @@
       + '<line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + wallDimX + '" y2="' + topY + '"/><line class="side-dimension" x1="' + wallDimX + '" y1="' + groundY + '" x2="' + wallDimX + '" y2="' + topY + '"/><path class="side-tick" d="M' + (wallDimX-5) + ' ' + (groundY+5) + 'l10-10M' + (wallDimX-5) + ' ' + (topY+5) + 'l10-10"/><text class="side-wall-height' + flashClass('height', heightText) + '" x="' + (wallDimX+15) + '" y="' + ((groundY+topY)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (wallDimX+15) + ' ' + ((groundY+topY)/2) + ')">' + heightText + '</text>'
       + '<text class="side-surface-label" x="' + surfaceLabelX + '" y="' + surfaceLabelY + '" text-anchor="middle" transform="rotate(' + surfaceAngle + ' ' + surfaceLabelX + ' ' + surfaceLabelY + ')">Climbing surface</text>'
       + (showForces && S.type === "wall" ? baseHorizontal(rx0.ll, 446, 'll', 488) + baseHorizontal(rx0.dl, 462, 'dl', 504) : "")
-      + (showForces ? baseVertical(rz0.ll, 172, 'll', 340) + baseVertical(rz0.dl, 188, 'dl', 354) : "")
+      + (showForces ? baseVertical(rz0.ll, 172, 'll', 344) + baseVertical(rz0.dl, 188, 'dl', 360) : "")
       + '<g class="side-axis"><line x1="26" y1="468" x2="26" y2="420" marker-end="url(#side-force-arrow)"/><line x1="26" y1="468" x2="80" y2="468" marker-end="url(#side-force-arrow)"/><text x="5" y="420">+Z</text><text x="65" y="488">+X</text></g>'
       + attachmentPointLabels
       + '<text class="side-point-label" x="' + (baseX - 12) + '" y="' + (groundY - 13) + '" text-anchor="end">X0</text>'
@@ -1350,6 +1417,9 @@
 
   // ============ projects: save / load ============
   var P = null; // currently loaded/edited project { id, name, tags, properties }
+  // Preserve the draft-to-project link during the short async interval before
+  // the complete project record is loaded after Refresh/navigation.
+  var pendingEditingProjectId = null;
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
@@ -1360,10 +1430,23 @@
       capacity: S.cap, baseCapacity: S.baseCapacity, sideCapacity: S.sideCapacity,
       columnCapacities: S.columnCapacities,
       attachmentSolution: S.attachmentSolution, solutionPicked: S.solutionPicked, loadsRequested: S.loadsRequested,
+      loadsRequestedBySolution: Object.assign({}, loadsRequestedBySolution),
       supportingSlab: singlePointSelection.slab, baseDetail: singlePointSelection.detail,
       supportingStructure: singlePointSelection.support, attachmentDetail: singlePointSelection.attachmentDetail,
       columnSupportingStructure: columnPointSelection.support, columnAttachmentDetail: columnPointSelection.attachmentDetail,
-      columnSupportingSlab: columnPointSelection.slab, columnBaseDetail: columnPointSelection.detail };
+      columnSupportingSlab: columnPointSelection.slab, columnBaseDetail: columnPointSelection.detail,
+      editingProjectId: P && P.id ? P.id : pendingEditingProjectId };
+  }
+  function persistCalculatorState() {
+    // Capture the active option at the moment the page is left. This is more
+    // reliable than depending on whichever render happened most recently.
+    loadsRequestedBySolution[S.attachmentSolution] = !!S.loadsRequested;
+    var serialized = JSON.stringify(currentInput());
+    try {
+      localStorage.setItem(CALCULATOR_DRAFT_KEY, serialized);
+      localStorage.setItem(CALCULATOR_SOLUTION_KEY, S.attachmentSolution);
+    } catch (error) {}
+    try { sessionStorage.setItem(CALCULATOR_RETURN_STATE_KEY, serialized); } catch (error) {}
   }
   function applyInput(inp, source) {
     if (!inp) return;
@@ -1375,10 +1458,25 @@
     S.sideCapacity = inp.sideCapacity !== undefined && inp.sideCapacity !== null ? Number(inp.sideCapacity) : null;
     S.columnCapacities = inp.columnCapacities && typeof inp.columnCapacities === "object" ? inp.columnCapacities : {};
     S.attachmentSolution = inp.attachmentSolution === "beams" ? "beams" : "single";
-    // Restoring inputs must never reveal results. VIEW LOADS is the only action
-    // allowed to open the load tables and result diagrams.
     S.solutionPicked = !!inp.solutionPicked;
-    S.loadsRequested = false;
+    if (source === "draft" && inp.editingProjectId) pendingEditingProjectId = inp.editingProjectId;
+    if (source === "project" && P && P.id) pendingEditingProjectId = P.id;
+    // A draft represents the exact point the user reached. Remember VIEW LOADS
+    // independently for both attachment solutions so switching back can reopen
+    // results without another click.
+    loadsRequestedBySolution.single = false;
+    loadsRequestedBySolution.beams = false;
+    if (source === "draft" || source === "project") {
+      var restoredLoads = inp.loadsRequestedBySolution && typeof inp.loadsRequestedBySolution === "object"
+        ? inp.loadsRequestedBySolution : {};
+      loadsRequestedBySolution.single = !!restoredLoads.single;
+      loadsRequestedBySolution.beams = !!restoredLoads.beams;
+      // Backward compatibility with drafts saved before per-option state.
+      if (!inp.loadsRequestedBySolution && inp.loadsRequested) {
+        loadsRequestedBySolution[S.attachmentSolution] = true;
+      }
+    }
+    S.loadsRequested = !!loadsRequestedBySolution[S.attachmentSolution];
     if (inp.supportingSlab) singlePointSelection.slab = inp.supportingSlab;
     if (inp.baseDetail) singlePointSelection.detail = inp.baseDetail;
     if (inp.supportingStructure) singlePointSelection.support = inp.supportingStructure;
@@ -1402,7 +1500,8 @@
       // A saved project represents a completed input set. Older project records
       // do not contain the draft-only `selected` map, so keep their established
       // behaviour and open them with their inputs selected.
-      selectedInputs.units = selectedInputs.type = selectedInputs.height = selectedInputs.span = selectedInputs.overhang = true;
+      selectedInputs.units = selectedInputs.type = selectedInputs.height = selectedInputs.overhang = true;
+      selectedInputs.span = S.attachmentSolution === "beams";
       selectedInputs.levels = S.type === "wall";
       selectedInputs.force = S.type === "wall";
     }
@@ -1454,6 +1553,44 @@
 
   var projectRoot = function () { return document.getElementById("project-root"); };
 
+  function projectSaveMissing() {
+    var missing = missingInputs().map(function (key) { return { key: "input-" + key, label: FIELD_LABELS[key] }; });
+    var selection = S.attachmentSolution === "beams" ? columnPointSelection : singlePointSelection;
+    if (!selection.slab) missing.push({ key: "slab", label: "supporting slab" });
+    if (!selection.detail) missing.push({ key: "base-detail", label: "base connection detail" });
+    if (!selection.support) missing.push({ key: "support", label: "attachment method" });
+    if (!selection.attachmentDetail) missing.push({ key: "attachment-detail", label: "attachment detail" });
+    return missing;
+  }
+
+  function markProjectSaveRequirements(missing) {
+    document.querySelectorAll(".save-requirement-missing").forEach(function (element) { element.classList.remove("save-requirement-missing"); });
+    if (!missing.length) return;
+    missing.forEach(function (item) {
+      if (item.key.indexOf("input-") !== 0) return;
+      var field = document.getElementById(FIELD_IDS[item.key.slice(6)]);
+      if (field) field.classList.add("save-requirement-missing");
+    });
+    var active = document.querySelector('[data-result-section="' + (S.attachmentSolution === "beams" ? "beams" : "single") + '"]:not([hidden])');
+    if (!active) return;
+    var keys = missing.map(function (item) { return item.key; });
+    var conditions = active.querySelector(".single-conditions");
+    if (!conditions) return;
+    if (["slab", "base-detail", "support", "attachment-detail"].some(function (key) { return keys.indexOf(key) >= 0; })) {
+      conditions.classList.add("save-requirement-missing");
+    }
+  }
+
+  function requireCompleteProject() {
+    var missing = projectSaveMissing();
+    if (!missing.length) return true;
+    renderProjectBar();
+    markProjectSaveRequirements(missing);
+    var firstMarked = document.querySelector(".save-requirement-missing");
+    if (firstMarked) firstMarked.scrollIntoView({ behavior: "smooth", block: "center" });
+    return false;
+  }
+
   // leave the editing context: keep the current inputs, but detach from the saved project
   function exitEditing() {
     if (P) {
@@ -1461,6 +1598,7 @@
       return;
     }
     P = null;
+    pendingEditingProjectId = null;
     history.replaceState(null, "", "index.html");
     renderProjectBar();
   }
@@ -1482,11 +1620,16 @@
       return;
     }
     var user = window.WTAuth && window.WTAuth.current();
+    var missingSaveItems = projectSaveMissing();
+    var requirementHtml = missingSaveItems.length
+      ? '<div class="project-save-requirements" role="status"><strong>Complete the configuration before saving.</strong><span>Missing: ' + missingSaveItems.map(function (item) { return item.label; }).join(", ") + '.</span></div>'
+      : '';
     if (!user) {
       root.innerHTML =
         '<div class="proj-actions"><button class="btn primary small" id="pb-login">Save as project</button>'
-        + '<span class="hint">Log in to save this design, add tags and additional project information.</span></div>';
+        + '<span class="hint">Log in to save this design, add tags and additional project information.</span>' + requirementHtml + '</div>';
       root.querySelector("#pb-login").onclick = function () {
+        if (!requireCompleteProject()) return;
         window.WTAuth.requireAuth("register").then(function () { openSavePanel(); }).catch(function () {});
       };
       return;
@@ -1500,7 +1643,7 @@
     } else {
       html += '<button class="btn primary small" id="pb-save">Save as project</button>';
     }
-    html += "</div>";
+    html += requirementHtml + "</div>";
     root.innerHTML = html;
     if (P) {
       root.querySelector("#pb-exit").onclick = exitEditing;
@@ -1530,6 +1673,7 @@
   }
 
   function openSavePanel(asNew) {
+    if (!requireCompleteProject()) return;
     var root = projectRoot();
     var name = (P && !asNew) ? P.name : (currentSnapshot().title + (S.type === "wall" ? " · " + S.levels + "-level" : ""));
     var tags = (P && !asNew) ? (P.tags || []).join(", ") : "";
@@ -1571,7 +1715,16 @@
     return { name: name, tags: tags, properties: properties, input: currentInput(), snapshot: currentSnapshot() };
   }
 
+  function savedProjectHasConfiguration(project, submittedInput) {
+    var saved = project && project.input ? project.input : {};
+    var keys = submittedInput.attachmentSolution === "beams"
+      ? ["attachmentSolution", "columnSupportingSlab", "columnBaseDetail", "columnSupportingStructure", "columnAttachmentDetail"]
+      : ["attachmentSolution", "supportingSlab", "baseDetail", "supportingStructure", "attachmentDetail"];
+    return keys.every(function (key) { return saved[key] === submittedInput[key]; });
+  }
+
   async function doSave(mode, returnToProjects) {
+    if (!requireCompleteProject()) return;
     var root = projectRoot();
     var msg = root.querySelector("#sp-msg");
     var payload;
@@ -1587,8 +1740,30 @@
       var res = (mode === "update" && P)
         ? await window.WTApi.updateProject(P.id, payload)
         : await window.WTApi.createProject(payload);
+      if (!savedProjectHasConfiguration(res.project, payload.input)) {
+        throw new Error("The server did not store the selected attachment details. Restart or redeploy the updated server, then save again.");
+      }
       P = res.project;
+      if (mode === "create") {
+        var createdProjectId = P.id;
+        P = null;
+        pendingEditingProjectId = null;
+        try {
+          sessionStorage.setItem("walltopia.projects.flash", "Project created");
+          sessionStorage.removeItem(ACTIVE_PROJECT_KEY);
+          localStorage.removeItem(CALCULATOR_DRAFT_KEY);
+        } catch (error) {}
+        location.href = "dashboard.html?focus=" + encodeURIComponent(createdProjectId);
+        return;
+      }
+      pendingEditingProjectId = P.id;
       history.replaceState(null, "", "index.html?project=" + P.id);
+      try {
+        sessionStorage.setItem(ACTIVE_PROJECT_KEY, P.id);
+        // Re-save after P is assigned so the working copy is tied to the newly
+        // created project as well, not only to projects opened for editing.
+        localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput()));
+      } catch (error) {}
       if (mode === "update" && returnToProjects) {
         try { sessionStorage.setItem("walltopia.projects.flash", "Project updated"); } catch (error) {}
         location.href = "dashboard.html?focus=" + encodeURIComponent(P.id);
@@ -1598,6 +1773,15 @@
       flash(mode === "update" ? "Project updated." : "Project saved.");
     } catch (e) {
       if (msg) { msg.className = "save-msg bad"; msg.textContent = e.message || "Could not save."; }
+      if (!msg) {
+        var bar = root.querySelector(".proj-actions");
+        if (bar) {
+          var errorMessage = document.createElement("div");
+          errorMessage.className = "save-msg bad project-save-error";
+          errorMessage.textContent = e.message || "Could not save.";
+          bar.appendChild(errorMessage);
+        }
+      }
       if (btn) { btn.disabled = false; btn.textContent = "Save"; }
     }
   }
@@ -1612,21 +1796,38 @@
 
   async function maybeLoadProjectFromUrl() {
     var id = new URLSearchParams(location.search).get("project");
+    if (!id && !landingViewActive) {
+      try { id = sessionStorage.getItem(ACTIVE_PROJECT_KEY); } catch (error) {}
+    }
     if (!id) return;
     try {
       if (window.WTAuth.ready) await window.WTAuth.ready; // wait for the initial session check
       await window.WTAuth.requireAuth("login");
       var res = await window.WTApi.getProject(id);
       P = res.project;
+      pendingEditingProjectId = P.id;
       applyInput(P.input, "project");
-      // The saved design restores its option and inputs, but the results remain
-      // closed until the user explicitly presses VIEW LOADS.
+      // OPEN & EDIT must reflect the saved database record. A stale local draft
+      // may belong to the same project but contain later, unsaved option changes;
+      // do not let it overwrite the explicitly opened project.
+      try {
+        var workingDraft = JSON.parse(localStorage.getItem(CALCULATOR_DRAFT_KEY) || "null");
+        if (workingDraft && String(workingDraft.editingProjectId || "") === String(id)) {
+          localStorage.removeItem(CALCULATOR_DRAFT_KEY);
+        }
+        sessionStorage.setItem(ACTIVE_PROJECT_KEY, id);
+      } catch (error) {}
+      var projectParams = new URLSearchParams(location.search);
+      var exportRequested = projectParams.get("export") === "pdf";
+      // A project opened from My Projects is a completed saved calculation:
+      // restore its option, details and load results immediately.
       S.solutionPicked = true;
-      S.loadsRequested = false;
+      S.loadsRequested = true;
+      if (S.loadsRequested) loadsRequestedBySolution[S.attachmentSolution] = true;
       clampAndRender();
       renderProjectBar();
-      if (new URLSearchParams(location.search).get("export") === "pdf") {
-        var bulkRequestId = new URLSearchParams(location.search).get("bulk");
+      if (exportRequested) {
+        var bulkRequestId = projectParams.get("bulk");
         setTimeout(function () {
           if (window.WTExportPdf) {
             window.WTExportPdf({
@@ -1641,6 +1842,10 @@
         }, 250);
       }
     } catch (e) { /* cancelled or not found — leave calculator as-is */ }
+    finally {
+      var layout = document.querySelector("main.layout");
+      if (layout) layout.classList.remove("is-restoring-project");
+    }
   }
 
   // ---- init ----
@@ -1649,17 +1854,25 @@
   // A fresh entry through the landing page must start visually unselected.
   if (!new URLSearchParams(location.search).get("project") && !landingViewActive) {
     try {
-      var savedDraft = JSON.parse(localStorage.getItem(CALCULATOR_DRAFT_KEY) || "null");
-      if (savedDraft && typeof savedDraft === "object") applyInput(savedDraft, "draft");
-      var savedSolution = localStorage.getItem(CALCULATOR_SOLUTION_KEY);
-      if (savedSolution === "single" || savedSolution === "beams") {
-        S.attachmentSolution = savedSolution;
-        S.solutionPicked = true;
+      var returnState = sessionStorage.getItem(CALCULATOR_RETURN_STATE_KEY);
+      var savedDraft = JSON.parse(returnState || localStorage.getItem(CALCULATOR_DRAFT_KEY) || "null");
+      var restoredDraft = savedDraft && typeof savedDraft === "object";
+      if (restoredDraft) applyInput(savedDraft, "draft");
+      // The draft contains the complete and newest calculator state. Consult
+      // the older standalone solution key only when no draft is available;
+      // otherwise a stale Option 1 value can overwrite a restored Option 2.
+      if (!restoredDraft) {
+        var savedSolution = localStorage.getItem(CALCULATOR_SOLUTION_KEY);
+        if (savedSolution === "single" || savedSolution === "beams") {
+          S.attachmentSolution = savedSolution;
+          S.solutionPicked = true;
+        }
       }
     } catch (error) {}
   }
+  window.addEventListener("pagehide", persistCalculatorState);
   document.getElementById("chk-factored").addEventListener("change", function (e) {
-    S.factored = e.target.checked; S.loadsRequested = false; renderResults();
+    S.factored = e.target.checked; renderResults();
   });
   var viewLoadsButton = document.getElementById("view-loads");
   if (viewLoadsButton) viewLoadsButton.addEventListener("click", function () {
@@ -1667,12 +1880,16 @@
     // is chosen; until then the missing fields glow red.
     showMissingFlag = true;
     S.loadsRequested = true;
+    loadsRequestedBySolution[S.attachmentSolution] = true;
     mobileResultsAutoScrollEnabled = true;
     clampAndRender();
   });
-  function resetCalculator(scrollToTop, preserveSolution) {
-    var retainedSolution = preserveSolution && S.solutionPicked ? S.attachmentSolution : "single";
-    var retainedSolutionPicked = !!(preserveSolution && S.solutionPicked);
+  function resetCalculator(scrollToTop, preserveSolution, selectedSolution) {
+    var hasSelectedSolution = selectedSolution === "single" || selectedSolution === "beams";
+    var retainedSolution = hasSelectedSolution
+      ? selectedSolution
+      : (preserveSolution && S.solutionPicked ? S.attachmentSolution : "single");
+    var retainedSolutionPicked = hasSelectedSolution || !!(preserveSolution && S.solutionPicked);
     S.units = "EU";
     S.type = "wall";
     S.height = 12;
@@ -1688,6 +1905,8 @@
     S.attachmentSolution = retainedSolution;
     S.solutionPicked = retainedSolutionPicked;
     S.loadsRequested = false;
+    loadsRequestedBySolution.single = false;
+    loadsRequestedBySolution.beams = false;
     landingViewActive = false;
     try { sessionStorage.setItem(CALCULATOR_VIEW_KEY, "calculator"); } catch (error) {}
     showMissingFlag = false;
@@ -1696,6 +1915,9 @@
     Object.keys(selectedInputs).forEach(function (key) { selectedInputs[key] = false; });
     schematicView = { scale: 1, panX: 0, panY: 0 };
     P = null;
+    pendingEditingProjectId = null;
+    try { sessionStorage.removeItem(ACTIVE_PROJECT_KEY); } catch (error) {}
+    try { sessionStorage.removeItem(CALCULATOR_RETURN_STATE_KEY); } catch (error) {}
 
     document.getElementById("chk-factored").checked = false;
     history.replaceState(null, "", "index.html");
@@ -1711,7 +1933,9 @@
     }
   }
   document.getElementById("reset-calculator").addEventListener("click", function () {
-    resetCalculator(true, true);
+    // Reset returns to the neutral solution chooser. The input panel and the
+    // drawing stay hidden until the user explicitly picks Option 1 or Option 2.
+    resetCalculator(true, false);
   });
   var calculatorHomeLink = document.getElementById("calculator-home-link");
   if (calculatorHomeLink) calculatorHomeLink.addEventListener("click", function (event) {
@@ -1729,11 +1953,8 @@
     if (!landingViewActive) return;
     event.preventDefault();
     landingViewActive = false;
-    S.solutionPicked = false;
-    S.loadsRequested = false;
     try { sessionStorage.setItem(CALCULATOR_VIEW_KEY, "calculator"); } catch (error) {}
     try {
-      localStorage.removeItem(CALCULATOR_SOLUTION_KEY);
       localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput()));
     } catch (error) {}
     clampAndRender();

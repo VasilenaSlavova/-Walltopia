@@ -138,7 +138,7 @@
   }
 
   function detailRows(p) {
-    var input = p.input || {}, snap = p.snapshot || {};
+    var input = p.input || {};
     var units = input.units === "USA" ? "Imperial" : "Metric";
     var facts = [
       ["Structure type", input.type === "boulder" ? "Boulder wall" : "Climbing wall"],
@@ -148,9 +148,7 @@
       ["Overhang X", fmtLen(input.overhang, input.units)],
       ["Units", units],
     ];
-    return facts.map(function (f) { return '<div><span>' + f[0] + "</span><b>" + esc(f[1]) + "</b></div>"; }).join("")
-      + '<div class="ask-governing"><span>Governing column load</span><b>'
-      + (typeof snap.governing === "number" ? esc(snap.governing + " " + (snap.unit || "")) : "—") + "</b></div>";
+    return facts.map(function (f) { return '<div><span>' + f[0] + "</span><b>" + esc(f[1]) + "</b></div>"; }).join("");
   }
 
   function render(user) {
@@ -450,8 +448,7 @@
     return [
       "Project: " + p.name,
       "Calculation: " + (snap.title || "Preliminary loads"),
-      "Inputs: height " + input.height + ", levels " + input.levels + ", A " + input.span + ", X " + input.overhang + ", units " + input.units,
-      "Governing column load: " + (snap.governing != null ? snap.governing + " " + (snap.unit || "") : "not available")
+      "Inputs: height " + input.height + ", levels " + input.levels + ", A " + input.span + ", X " + input.overhang + ", units " + input.units
     ].join("\n");
   }
 

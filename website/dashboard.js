@@ -115,12 +115,6 @@
     var snap = p.snapshot || {};
     var when = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "";
     var tagChips = (p.tags || []).slice(0, 6).map(function (t) { return '<span class="tag-chip" data-tag="' + esc(t) + '">' + esc(t) + "</span>"; }).join("");
-    var snapTagChips = (p.tags || []).slice(0, 6).map(function (t) { return '<span class="tag-chip">' + esc(t) + "</span>"; }).join("");
-    var gov = (typeof snap.governing === "number")
-      ? '<div class="snap"><span>Governing column load <b>' + snap.governing + " " + esc(snap.unit || "") + "</b>"
-        + (snap.verdict && snap.verdict !== "neutral" ? ' <strong class="project-status ' + (snap.verdict === "ok" ? "is-applicable" : "is-exceeded") + '"><span class="project-status-icon" aria-hidden="true">' + (snap.verdict === "ok" ? "✔" : "✖") + "</span> " + (snap.verdict === "ok" ? "Applicable" : "Exceeds capacity") + "</strong>" : "") + "</span>"
-        + (snapTagChips ? '<span class="snap-tags">' + snapTagChips + "</span>" : "") + "</div>"
-      : "";
     var propChips = (p.properties || []).slice(0, 4).map(function (pr) {
       return '<span class="tag-chip prop">' + esc(pr.key) + (pr.value ? ": " + esc(pr.value) : "") + "</span>";
     }).join("");
@@ -129,8 +123,7 @@
       + (selectionMode ? '<label class="project-selector" title="Select ' + esc(p.name) + '"><input type="checkbox" data-select-project="' + p.id + '"' + (isSelected ? " checked" : "") + '><span>Select project</span></label>' : '')
       + "<h3>" + esc(p.name) + "</h3>"
       + '<div class="meta">' + esc(snap.title || "") + (when ? " · updated " + when : "") + "</div>"
-      + gov
-      + (!gov && tagChips ? '<div class="tags">' + tagChips + "</div>" : "")
+      + (tagChips ? '<div class="tags">' + tagChips + "</div>" : "")
       + (propChips ? '<div class="tags">' + propChips + "</div>" : "")
       + '<div class="card-actions"><a class="btn small primary" data-open-project="' + p.id + '" href="index.html?project=' + p.id + '">Open &amp; edit</a>'
       + '<button class="btn small" type="button" data-export="' + p.id + '">Export PDF</button>'

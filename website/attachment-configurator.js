@@ -247,7 +247,7 @@
     var polygon = contourTop.concat(contourBottom.slice().reverse()).map(function (p) { return p.join(","); }).join(" ");
     var beamIndex = Math.floor((levelYs.length - 1) / 2);
     var beamTargetY = levelYs[beamIndex] + 12 + (-24) * ((470-left)/(right-left));
-    var contourDimTop = contourTop[1], contourDimBottom = contourBottom[1];
+    var contourDimTop = contourTop[3], contourDimBottom = contourBottom[3];
     function groundY(x) { return baseY + 13 + (x - 95) * (-27 / 555); }
     var spanGap = 14;
     // Offset the extra columns to the outer quarter of each bay so they clear the
@@ -346,11 +346,11 @@
     }
     var baseReactionArrows = visualOnly && state.showForces
       ? '<g class="acs-base-reactions">'
-        + '<rect class="acs-base-reaction-box" x="' + (mid - 205) + '" y="' + (baseY - 61) + '" width="132" height="49"/>'
-        + '<text class="acs-base-reaction-label is-ll" x="' + (mid - 195) + '" y="' + (baseY - 42) + '">RZ0 LL = ' + baseReactionValue(state.baseReactions.rz0LL) + ' ' + state.forceUnit + '</text>'
-        + '<text class="acs-base-reaction-label is-dl" x="' + (mid - 195) + '" y="' + (baseY - 23) + '">RZ0 DL = ' + baseReactionValue(state.baseReactions.rz0DL) + ' ' + state.forceUnit + '</text>'
-        + baseVerticalReaction(state.baseReactions.rz0LL, mid - 57, 'll')
-        + baseVerticalReaction(state.baseReactions.rz0DL, mid - 43, 'dl') + '</g>'
+        + '<rect class="acs-base-reaction-box" x="' + (mid - 115) + '" y="' + (baseY + 5) + '" width="150" height="49"/>'
+        + '<text class="acs-base-reaction-label is-ll" x="' + (mid - 105) + '" y="' + (baseY + 24) + '">RZ0 LL = ' + baseReactionValue(state.baseReactions.rz0LL) + ' ' + state.forceUnit + '</text>'
+        + '<text class="acs-base-reaction-label is-dl" x="' + (mid - 105) + '" y="' + (baseY + 43) + '">RZ0 DL = ' + baseReactionValue(state.baseReactions.rz0DL) + ' ' + state.forceUnit + '</text>'
+        + baseVerticalReaction(state.baseReactions.rz0LL, mid - 48, 'll')
+        + baseVerticalReaction(state.baseReactions.rz0DL, mid - 32, 'dl') + '</g>'
       : '';
     var supportFrames = visualOnly
       ? '<g class="acs-extra-columns">'
@@ -380,13 +380,13 @@
       + '<path class="acs-full-roof" d="M' + left + " " + (topY+12) + 'L' + right + " " + (topY-12) + '"/><path class="acs-full-ground" d="M95 ' + (baseY+13) + 'L650 ' + (baseY-14) + '"/>'
       + '<rect class="acs-full-column" x="' + (left-7) + '" y="' + (topY+12) + '" width="14" height="' + (baseY-(topY+12)+12) + '"/><rect class="acs-full-column" x="' + (mid-7) + '" y="' + topY + '" width="14" height="' + (baseY-topY) + '"/><rect class="acs-full-column" x="' + (right-7) + '" y="' + (topY-12) + '" width="14" height="' + (baseY-(topY-12)-12) + '"/>'
       + beams + pointMarkers + labels
-      + '<g class="acs-callouts"><text x="18" y="205"><tspan x="18">Existing column</tspan><tspan x="18" dy="14">of the building</tspan></text><path d="M105 214L' + left + ' ' + (baseY-110) + '" marker-end="url(#acs-tech-arrow)"/>'
+      + '<g class="acs-callouts"><text x="10" y="205"><tspan x="10">Existing column</tspan><tspan x="10" dy="14">of the building</tspan></text><path d="M97 214L' + left + ' ' + (baseY-110) + '" marker-end="url(#acs-tech-arrow)"/>'
       + '<text x="430" y="' + (beamTargetY-42) + '">Walltopia beam</text><path d="M475 ' + (beamTargetY-35) + 'L470 ' + beamTargetY + '" marker-end="url(#acs-tech-arrow)"/>'
-      + (visualOnly ? '<text x="112" y="' + Math.max(24, topY-28) + '">Walltopia single column</text><path d="M168 ' + Math.max(30, topY-22) + 'L' + (leftBayX+16) + ' ' + (levelYs[levelYs.length-1] + 45 + (-24) * ((leftBayX-left)/(right-left))) + '" marker-end="url(#acs-tech-arrow)"/>' : '') + '</g>'
+      + (visualOnly ? '<text x="220" y="' + Math.max(24, topY-28) + '">Walltopia single column</text><path d="M215 ' + Math.max(30, topY-22) + 'L' + (leftBayX+16) + ' ' + (levelYs[levelYs.length-1] + 45 + (-24) * ((leftBayX-left)/(right-left))) + '" marker-end="url(#acs-tech-arrow)"/>' : '') + '</g>'
       + '<polygon class="acs-contour" points="' + polygon + '"/><polyline class="acs-top-contour" points="' + contourTop.map(function(p){return p.join(",");}).join(" ") + '"/>'
       + '<g class="acs-contour-notes"><text class="acs-contour-label" x="78" y="510"><tspan x="78">Climbing surface</tspan><tspan class="is-strong" x="78" dy="14">bottom contour</tspan></text><path d="M145 493L132 458L' + contourTop[0][0] + ' ' + contourTop[0][1] + '" marker-end="url(#acs-tech-arrow)"/>'
       + '<text class="acs-contour-label" x="650" y="510"><tspan x="650">Climbing surface</tspan><tspan class="is-strong" x="650" dy="14">top contour</tspan></text><path d="M650 493L635 470L' + contourBottom[4][0] + ' ' + contourBottom[4][1] + '" marker-end="url(#acs-tech-arrow)"/></g>'
-      + '<g class="acs-span-on-wall"><line x1="' + (left+spanGap) + '" y1="' + (groundY(left+spanGap)-10) + '" x2="' + (mid-spanGap) + '" y2="' + (groundY(mid-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text class="' + flashClass('spanL', spanText).slice(1) + '" x="' + ((left+mid)/2) + '" y="' + (groundY((left+mid)/2)-18) + '" text-anchor="middle">' + spanText + '</text>'
+      + '<g class="acs-span-on-wall"><line x1="' + (left+spanGap) + '" y1="' + (groundY(left+spanGap)-10) + '" x2="' + (mid-spanGap) + '" y2="' + (groundY(mid-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text class="' + flashClass('spanL', spanText).slice(1) + '" x="' + ((left+mid)/2+24) + '" y="' + (groundY((left+mid)/2)-18) + '" text-anchor="middle">' + spanText + '</text>'
       + '<line x1="' + (mid+spanGap) + '" y1="' + (groundY(mid+spanGap)-10) + '" x2="' + (right-spanGap) + '" y2="' + (groundY(right-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text class="' + flashClass('spanR', spanText).slice(1) + '" x="' + ((mid+right)/2) + '" y="' + (groundY((mid+right)/2)-18) + '" text-anchor="middle">' + spanText + '</text><title>A — span between columns</title></g>'
       + '<g class="acs-contour-dim"><line x1="' + contourDimTop[0] + '" y1="' + contourDimTop[1] + '" x2="' + contourDimBottom[0] + '" y2="' + contourDimBottom[1] + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text class="' + flashClass('overhang', overhangText).slice(1) + '" x="' + (contourDimBottom[0]+14) + '" y="' + ((contourDimTop[1]+contourDimBottom[1])/2+4) + '">' + overhangText + '</text></g>'
       + dims + '<line class="acs-dim" x1="760" y1="' + (topY-12) + '" x2="760" y2="' + baseY + '"/><text class="acs-dim-label' + flashClass('height', heightText) + '" x="775" y="' + ((topY+baseY)/2) + '">' + heightText + '</text>'

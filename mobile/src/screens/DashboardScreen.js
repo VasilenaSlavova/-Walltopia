@@ -204,12 +204,6 @@ function ProjectCard({ p, selectionMode, selected, onSelect, onOpen, onExport, o
         {selectionMode ? <Pressable onPress={onSelect} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} accessibilityLabel={`Select ${p.name}`} style={[s.checkbox, selected && s.checkboxActive]}><Text style={s.checkmark}>{selected ? "✓" : ""}</Text></Pressable> : null}
       </View>
       <Text style={{ color: C.inkFaint, fontSize: 12, marginTop: 2, fontFamily: FB[400] }}>{snap.title || ""}{when ? " · updated " + when : ""}</Text>
-      {typeof snap.governing === "number" && (
-        <View style={{ backgroundColor: C.surface2, padding: 8, marginTop: 8 }}>
-          <Text style={{ color: C.inkSoft, fontSize: 12.5, fontFamily: FB[400] }}>Governing column load <Text style={{ color: C.red, fontFamily: FB[700] }}>{snap.governing} {snap.unit || ""}</Text></Text>
-          {snap.verdict && snap.verdict !== "neutral" ? <Text style={[s.projectStatus, snap.verdict === "ok" ? s.statusApplicable : s.statusExceeded]}>{snap.verdict === "ok" ? "✔ APPLICABLE" : "✖ EXCEEDS CAPACITY"}</Text> : null}
-        </View>
-      )}
       {(p.tags || []).length > 0 && (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
           {p.tags.slice(0, 6).map((t) => (

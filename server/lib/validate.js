@@ -39,7 +39,13 @@ function cleanProps(v) {
 // input snapshot from the calculator — stored as a flexible object, lightly bounded
 function cleanInput(v) {
   if (!v || typeof v !== "object") return {};
-  const allow = ["units", "type", "height", "levels", "span", "overhang", "force", "factored", "capacity"];
+  const allow = [
+    "units", "type", "height", "levels", "span", "overhang", "force", "factored", "capacity",
+    "baseCapacity", "sideCapacity", "columnCapacities",
+    "attachmentSolution", "solutionPicked", "loadsRequested", "loadsRequestedBySolution",
+    "supportingSlab", "baseDetail", "supportingStructure", "attachmentDetail",
+    "columnSupportingSlab", "columnBaseDetail", "columnSupportingStructure", "columnAttachmentDetail"
+  ];
   const out = {};
   for (const k of allow) if (v[k] !== undefined && v[k] !== null) out[k] = v[k];
   return out;
