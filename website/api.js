@@ -53,6 +53,6 @@
     createProject: function (p) { return req("POST", "/projects", p); },
     updateProject: function (id, p) { return req("PUT", "/projects/" + id, p); },
     deleteProject: function (id) { return req("DELETE", "/projects/" + id); },
-    sendSupportInquiry: function (id, message) { return req("POST", "/projects/" + id + "/support-inquiries", { message: message }, 25000); },
+    sendSupportInquiry: function (id, message) { return req("POST", "/projects/" + id + "/support-inquiries", { message: message }, 60000); },
   };
 })();

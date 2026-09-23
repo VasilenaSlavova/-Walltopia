@@ -12,6 +12,34 @@ router.use(requireAuth);
 const oid = (id) => { try { return new ObjectId(id); } catch { return null; } };
 const publicQ = (q) => ({ id: String(q._id), message: q.message, createdAt: q.createdAt, status: q.status || "open" });
 
+async function deliverInquiryEmail({ inquiryId, reference, project, message, createdAt, user }) {
+  let email;
+  try {
+    email = await sendInquiryEmail({
+      reference,
+      projectName: project.name,
+      message,
+      createdAt,
+      contactName: user.name,
+      replyTo: user.email,
+    });
+  } catch (error) {
+    email = { status: "failed", error: error.message };
+  }
+  try {
+    await col("questions").updateOne(
+      { _id: inquiryId },
+      { $set: {
+        emailStatus: email.status,
+        emailMessageId: email.messageId || null,
+        emailError: email.status === "failed" ? String(email.error || "Email delivery failed").slice(0, 500) : null,
+      } }
+    );
+  } catch (error) {
+    console.error("Could not update inquiry email status", error);
+  }
+}
+
 async function ownedProject(req) {
   const id = oid(req.params.projectId);
   if (!id) return null;
@@ -34,28 +62,20 @@ router.post("/", async (req, res, next) => {
       projectName: project.name,
       message: message.slice(0, 4000),
       status: "open",
+      emailStatus: "queued",
       createdAt: new Date(),
     };
     const r = await col("questions").insertOne(doc);
     const reference = String(r.insertedId).slice(-8).toUpperCase();
-    let email = { status: "not_configured" };
-    try {
-      email = await sendInquiryEmail({
-        reference,
-        projectName: project.name,
-        message: doc.message,
-        createdAt: doc.createdAt,
-        contactName: user.name,
-        replyTo: user.email,
-      });
-    } catch (error) {
-      email = { status: "failed", error: error.message };
-    }
-    await col("questions").updateOne(
-      { _id: r.insertedId },
-      { $set: { emailStatus: email.status, emailMessageId: email.messageId || null } }
-    );
-    res.status(201).json({ inquiry: publicQ({ ...doc, _id: r.insertedId }), email });
+    res.status(201).json({ inquiry: publicQ({ ...doc, _id: r.insertedId }), email: { status: "queued" } });
+    void deliverInquiryEmail({
+      inquiryId: r.insertedId,
+      reference,
+      project,
+      message: doc.message,
+      createdAt: doc.createdAt,
+      user,
+    });
   } catch (e) { next(e); }
 });
 

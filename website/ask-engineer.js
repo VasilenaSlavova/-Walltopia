@@ -480,6 +480,8 @@
       var reference = res.inquiry && res.inquiry.id ? res.inquiry.id.slice(-8).toUpperCase() : "created";
       if (res.email && res.email.status === "sent") {
         msg.textContent = "Inquiry emailed · reference " + reference;
+      } else if (res.email && res.email.status === "queued") {
+        msg.textContent = "Inquiry saved · email delivery is processing · reference " + reference;
       } else if (res.email && res.email.status === "failed") {
         msg.className = "save-msg bad";
         msg.textContent = "Inquiry saved, but email delivery failed · reference " + reference;
