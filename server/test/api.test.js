@@ -107,15 +107,17 @@ async function call(method, path, body, withCookie = true) {
     ok(r.status === 200 && r.json.project.name === "Gym A — revised", "update project");
 
     // question (auth-gated, project-owned)
-    ok((await call("POST", "/api/projects/" + pid + "/support-inquiries", { message: "hi" })).status === 400, "short support inquiry rejected");
-    ok((await call("POST", "/api/projects/" + pid + "/support-inquiries", { message: "Please review this project-specific calculation." })).status === 201, "post support inquiry");
+    ok((await call("POST", "/api/projects/" + pid + "/support-inquiries", { message: "hi", requestId: "test-short-inquiry-001" })).status === 400, "short support inquiry rejected");
+    const inquiryBody = { message: "Please review this project-specific calculation.", requestId: "test-valid-inquiry-001" };
+    ok((await call("POST", "/api/projects/" + pid + "/support-inquiries", inquiryBody)).status === 201, "post support inquiry");
+    ok((await call("POST", "/api/projects/" + pid + "/support-inquiries", inquiryBody)).status === 200, "duplicate support inquiry is idempotent");
 
     // ownership isolation: a second user cannot see the first user's project
     cookie = "";
     await call("POST", "/api/auth/register", { name: "Bob", email: "bob@example.com", password: "supersecret1" });
     ok((await call("GET", "/api/projects")).json.projects.length === 0, "second user sees no projects (isolation)");
     ok((await call("GET", "/api/projects/" + pid)).status === 404, "second user cannot read others' project");
-    ok((await call("POST", "/api/projects/" + pid + "/support-inquiries", { message: "Unauthorised project inquiry" })).status === 404, "second user cannot submit support for another user's project");
+    ok((await call("POST", "/api/projects/" + pid + "/support-inquiries", { message: "Unauthorised project inquiry", requestId: "test-unauthorised-001" })).status === 404, "second user cannot submit support for another user's project");
 
     // delete (as owner)
     cookie = "";

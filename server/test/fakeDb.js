@@ -37,11 +37,16 @@ function makeCollection(uniqueFields) {
       const res = docs.filter((d) => matches(d, query)).map((d) => ({ ...d }));
       return { async toArray() { return res; }, sort() { return this; } };
     },
-    async updateOne(filter, update) {
+    async updateOne(filter, update, options) {
       const d = docs.find((x) => matches(x, filter));
-      if (!d) return { matchedCount: 0, modifiedCount: 0 };
+      if (!d && options && options.upsert) {
+        const _id = new ObjectId();
+        docs.push({ ...filter, ...(update.$setOnInsert || {}), _id });
+        return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1, upsertedId: _id };
+      }
+      if (!d) return { matchedCount: 0, modifiedCount: 0, upsertedCount: 0 };
       Object.assign(d, update.$set || {});
-      return { matchedCount: 1, modifiedCount: 1 };
+      return { matchedCount: 1, modifiedCount: 1, upsertedCount: 0 };
     },
     async deleteOne(filter) {
       const i = docs.findIndex((x) => matches(x, filter));

@@ -50,6 +50,10 @@ async function ensureIndexes(db) {
   await db.collection("projects").createIndex({ userId: 1, updatedAt: -1 });
   await db.collection("projects").createIndex({ userId: 1, tags: 1 });
   await db.collection("questions").createIndex({ projectId: 1, createdAt: -1 });
+  await db.collection("questions").createIndex(
+    { userId: 1, projectId: 1, requestId: 1 },
+    { unique: true, partialFilterExpression: { requestId: { $type: "string" } } }
+  );
 }
 
 const getDb = () => {

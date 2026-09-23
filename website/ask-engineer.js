@@ -4,6 +4,7 @@
   var root = document.getElementById("ask-root");
   var projects = [];
   var selected = null;
+  var pendingInquiry = null;
   var DIAL_CODES = {
     Afghanistan:"+93", Albania:"+355", Algeria:"+213", Andorra:"+376", Angola:"+244", Argentina:"+54", Armenia:"+374", Aruba:"+297", Australia:"+61", Austria:"+43", Azerbaijan:"+994",
     Bahamas:"+1242", Bahrain:"+973", Bangladesh:"+880", Barbados:"+1246", Belarus:"+375", Belgium:"+32", Belize:"+501", Benin:"+229", Bhutan:"+975", Bolivia:"+591", "Bosnia and Herzegovina":"+387", Botswana:"+267", Brazil:"+55", Brunei:"+673", Bulgaria:"+359", "Burkina Faso":"+226", Burundi:"+257",
@@ -474,8 +475,17 @@
       "",
       projectContext(selected)
     ].join("\n");
+    if (!pendingInquiry || pendingInquiry.projectId !== selected.id || pendingInquiry.body !== body) {
+      pendingInquiry = {
+        projectId: selected.id,
+        body: body,
+        requestId: window.crypto && typeof window.crypto.randomUUID === "function"
+          ? window.crypto.randomUUID()
+          : Date.now().toString(36) + "_" + Math.random().toString(36).slice(2) + "_inquiry"
+      };
+    }
     try {
-      var res = await window.WTApi.sendSupportInquiry(selected.id, body);
+      var res = await window.WTApi.sendSupportInquiry(selected.id, body, pendingInquiry.requestId);
       msg.className = "save-msg ok";
       var reference = res.inquiry && res.inquiry.id ? res.inquiry.id.slice(-8).toUpperCase() : "created";
       if (res.email && res.email.status === "sent") {
@@ -490,6 +500,7 @@
       }
       root.querySelector("#ask-message").value = "";
       root.querySelector("#ask-count").textContent = "0";
+      pendingInquiry = null;
     } catch (err) {
       msg.className = "save-msg bad"; msg.textContent = err.message || "Could not send the inquiry.";
     } finally {
