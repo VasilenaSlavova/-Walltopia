@@ -1,5 +1,16 @@
 const nodemailer = require("nodemailer");
 
+const EMAIL_TIMEOUT_MS = 15000;
+
+function timeoutSignal(ms) {
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 const esc = (value) => String(value == null ? "" : value)
   .replace(/&/g, "&amp;")
   .replace(/</g, "&lt;")
@@ -69,6 +80,7 @@ async function sendInquiryEmail(data) {
   if (process.env.RESEND_API_KEY) {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      signal: timeoutSignal(EMAIL_TIMEOUT_MS),
       headers: {
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
         "Content-Type": "application/json",
@@ -94,6 +106,9 @@ async function sendInquiryEmail(data) {
     host: cfg.host,
     port: cfg.port,
     secure: cfg.secure,
+    connectionTimeout: EMAIL_TIMEOUT_MS,
+    greetingTimeout: EMAIL_TIMEOUT_MS,
+    socketTimeout: EMAIL_TIMEOUT_MS,
     auth: cfg.user && cfg.pass ? { user: cfg.user, pass: cfg.pass } : undefined,
   });
   const info = await transporter.sendMail({

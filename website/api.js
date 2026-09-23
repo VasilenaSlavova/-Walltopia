@@ -5,17 +5,25 @@
   "use strict";
   var BASE = "/api";
 
-  async function req(method, path, body) {
+  async function req(method, path, body, timeoutMs) {
     var res;
+    var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timeout = controller && timeoutMs ? setTimeout(function () { controller.abort(); }, timeoutMs) : null;
     try {
       res = await fetch(BASE + path, {
         method: method,
         credentials: "include",
         headers: body ? { "Content-Type": "application/json" } : undefined,
         body: body ? JSON.stringify(body) : undefined,
+        signal: controller ? controller.signal : undefined,
       });
     } catch (e) {
+      if (e && e.name === "AbortError") {
+        throw new ApiError("The server is taking too long to respond. Check the project history before trying again.", 0);
+      }
       throw new ApiError("Can't reach the server. Start the account server (server/) to use projects.", 0);
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
     var data = null;
     try { data = await res.json(); } catch (e) {}
@@ -45,6 +53,6 @@
     createProject: function (p) { return req("POST", "/projects", p); },
     updateProject: function (id, p) { return req("PUT", "/projects/" + id, p); },
     deleteProject: function (id) { return req("DELETE", "/projects/" + id); },
-    sendSupportInquiry: function (id, message) { return req("POST", "/projects/" + id + "/support-inquiries", { message: message }); },
+    sendSupportInquiry: function (id, message) { return req("POST", "/projects/" + id + "/support-inquiries", { message: message }, 25000); },
   };
 })();

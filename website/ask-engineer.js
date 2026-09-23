@@ -478,15 +478,21 @@
       var res = await window.WTApi.sendSupportInquiry(selected.id, body);
       msg.className = "save-msg ok";
       var reference = res.inquiry && res.inquiry.id ? res.inquiry.id.slice(-8).toUpperCase() : "created";
-      msg.textContent = res.email && res.email.status === "sent"
-        ? "Inquiry emailed · reference " + reference
-        : "Inquiry saved · email delivery is not configured · reference " + reference;
+      if (res.email && res.email.status === "sent") {
+        msg.textContent = "Inquiry emailed · reference " + reference;
+      } else if (res.email && res.email.status === "failed") {
+        msg.className = "save-msg bad";
+        msg.textContent = "Inquiry saved, but email delivery failed · reference " + reference;
+      } else {
+        msg.textContent = "Inquiry saved · email delivery is not configured · reference " + reference;
+      }
       root.querySelector("#ask-message").value = "";
       root.querySelector("#ask-count").textContent = "0";
     } catch (err) {
       msg.className = "save-msg bad"; msg.textContent = err.message || "Could not send the inquiry.";
+    } finally {
+      button.disabled = false; button.textContent = "Send inquiry";
     }
-    button.disabled = false; button.textContent = "Send inquiry";
   }
 
   window.WTAuth ? window.WTAuth.onChange(load) : null;
