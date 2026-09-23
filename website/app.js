@@ -963,8 +963,8 @@
         + '<p class="sub">Pick Option 1 or Option 2 to configure the inputs and see the drawing.</p></div></div>';
       var chooserPrompts = landingViewActive
         ? '<div class="result-solution-prompts">'
-          + '<p>Option 1 connects the climbing wall directly to the existing structure.</p>'
-          + '<p>Option 2 adds Walltopia support beams between the building columns.</p>'
+          + '<p>Option 1 connects the climbing wall columns directly to the existing structure.</p>'
+          + '<p>Option 2 connects Walltopia support beams to the building columns.</p>'
           + '</div>'
         : '';
       root.innerHTML = (landingViewActive ? calculatorWelcomeHtml() : "")

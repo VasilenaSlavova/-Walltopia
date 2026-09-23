@@ -4,6 +4,7 @@
   "use strict";
   var AUTH_PREVIEW_KEY = "walltopia_auth_preview";
   var CALCULATOR_DRAFT_KEY = "walltopia.calculator.draft.v1";
+  var CALCULATOR_VIEW_KEY = "walltopia.calculator.view.v1";
   var current = null;          // user object, or null when guest
   var hasAuthPreview = false;
   try {
@@ -147,8 +148,10 @@
   async function logOut() {
     try { await window.WTApi.logout(); } catch (e) {}
     try { localStorage.removeItem(CALCULATOR_DRAFT_KEY); } catch (e) {}
+    try { sessionStorage.setItem(CALCULATOR_VIEW_KEY, "landing"); } catch (e) {}
     setUser(null);
     window.dispatchEvent(new CustomEvent("wtauth:logout"));
+    window.location.href = "index.html";
   }
 
   function renderSlot() {
