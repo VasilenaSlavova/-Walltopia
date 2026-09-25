@@ -4,7 +4,7 @@
   var root = document.getElementById("attachment-config-root");
   var DETAIL_PATH = "manuals/attachment/details/";
   var ATTACHMENT_DRAFT_KEY = "walltopia.attachment.draft.v1";
-  var state = { type: "wall", slab: "solid-concrete-slab", baseDetailId: null, support: "concrete-wall", detail: null, input: { height: 12, levels: 3 }, levelForces: [], deadLevelForces: [], forceUnit: "kN", view: { scale: 1, panX: 0, panY: 0 }, viewContext: null };
+  var state = { type: "wall", slab: "solid-concrete-slab", baseDetailId: null, support: "concrete-wall", detail: null, input: { height: 12, levels: 3 }, levelForces: [], deadLevelForces: [], forceUnit: "kN", columnSlab: null, columnBaseDetail: null, showForces: true, selected: {}, view: { scale: 1, panX: 0, panY: 0 }, viewContext: null };
   try {
     var attachmentDraft = JSON.parse(localStorage.getItem(ATTACHMENT_DRAFT_KEY) || "null");
     if (attachmentDraft && typeof attachmentDraft === "object") {
@@ -16,29 +16,40 @@
   if (window.WTCalculatorPayload) {
     state.input = window.WTCalculatorPayload.input || state.input;
     state.type = state.input.type || state.type;
+    state.support = state.input.columnSupportingStructure || state.support;
+    state.detail = state.input.columnAttachmentDetail || null;
     state.levelForces = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.levelForces) || [];
     state.deadLevelForces = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.levelDeadForces) || [];
     state.forceUnit = (window.WTCalculatorPayload.snapshot && window.WTCalculatorPayload.snapshot.unit) || state.forceUnit;
+    state.columnSlab = state.input.columnSupportingSlab || null;
+    state.columnBaseDetail = state.input.columnBaseDetail || null;
+    if (state.columnSlab) state.slab = state.columnSlab === "hollow" ? "hollow-panel-slab" : "solid-concrete-slab";
+    if (state.columnBaseDetail) state.baseDetailId = state.columnBaseDetail;
+    state.showForces = window.WTCalculatorPayload.showForces !== false;
+    state.selected = window.WTCalculatorPayload.selected || {};
   }
 
   var details = [
-    { id: "CF-01", support: "concrete-floor", slab: "solid-concrete-slab", title: "Concrete floor · Detail 01", file: "concrete-floor-05.png", point: "base" },
-    { id: "CF-02", support: "concrete-floor", slab: "solid-concrete-slab", title: "Concrete floor · Detail 02", file: "concrete-floor-04.png", point: "base" },
-    { id: "CF-03", support: "concrete-floor", slab: "hollow-panel-slab", title: "Concrete floor · Detail 03", file: "concrete-floor-03.png", point: "base" },
-    { id: "CF-04", support: "concrete-floor", slab: "solid-concrete-slab", title: "Concrete floor · Detail 04", file: "concrete-floor-02.png", point: "base" },
-    { id: "CF-05", support: "concrete-floor", slab: "solid-concrete-slab", title: "Concrete floor · Detail 05", file: "concrete-floor-01.png", point: "base" },
-    { id: "CW-01", support: "concrete-wall", title: "Concrete wall · Detail 01", file: "concrete-wall-03.png", point: "level" },
-    { id: "CW-02", support: "concrete-wall", title: "Concrete wall · Detail 02", file: "concrete-wall-02.png", point: "level" },
-    { id: "CW-03", support: "concrete-wall", title: "Concrete wall · Detail 03", file: "concrete-wall-01.png", point: "level" },
-    { id: "SC-01", support: "steel-column", title: "Steel column · Detail 01", file: "steel-column-04.png", point: "level" },
-    { id: "SC-02", support: "steel-column", title: "Steel column · Detail 02", file: "steel-column-03.png", point: "level" },
-    { id: "SC-03", support: "steel-column", title: "Steel column · Detail 03", file: "steel-column-02.png", point: "level" },
-    { id: "SC-04", support: "steel-column", title: "Steel column · Detail 04", file: "steel-column-01.png", point: "level" },
-    { id: "MW-01", support: "masonry-wall", title: "Masonry wall · Detail 01", file: "masonry-wall-02.png", point: "level", boulderOnly: true },
-    { id: "MW-02", support: "masonry-wall", title: "Masonry wall · Detail 02", file: "masonry-wall-01.png", point: "level", boulderOnly: true }
+    { id: "CF-01", support: "concrete-floor", slab: "solid-concrete-slab", title: "Concrete floor · Detail 01", file: "concrete-floor-01-metric.png", fileUSA: "concrete-floor-01-imperial.png", point: "base" },
+    { id: "CF-02", support: "concrete-floor", slab: "solid-concrete-slab", title: "Concrete floor · Detail 02", file: "concrete-floor-02-metric.png", fileUSA: "concrete-floor-02-imperial.png", point: "base" },
+    { id: "CF-03", support: "concrete-floor", slab: "hollow-panel-slab", title: "Concrete floor · Detail 03", file: "concrete-floor-03-metric.png", fileUSA: "concrete-floor-03-imperial.png", point: "base" },
+    { id: "CF-04", support: "concrete-floor", slab: "solid-concrete-slab", title: "Concrete floor · Detail 04", file: "concrete-floor-04-metric.png", fileUSA: "concrete-floor-04-imperial.png", point: "base" },
+    { id: "CF-05", support: "concrete-floor", slab: "solid-concrete-slab", title: "Concrete floor · Detail 05", file: "concrete-floor-05-metric.png", fileUSA: "concrete-floor-05-imperial.png", point: "base" },
+    { id: "CW-01", support: "concrete-wall", title: "Concrete wall · Detail 01", file: "concrete-wall-01-metric.png", fileUSA: "concrete-wall-01-imperial.png", point: "level" },
+    { id: "CW-02", support: "concrete-wall", title: "Concrete wall · Detail 02", file: "concrete-wall-02-metric.png", fileUSA: "concrete-wall-02-imperial.png", point: "level" },
+    { id: "CW-03", support: "concrete-wall", title: "Concrete wall · Detail 03", file: "concrete-wall-03-metric.png", fileUSA: "concrete-wall-03-imperial.png", point: "level" },
+    { id: "SC-01", support: "steel-column", title: "Steel column · Detail 01", file: "steel-column-01-metric.png", fileUSA: "steel-column-01-imperial.png", point: "level" },
+    { id: "SC-02", support: "steel-column", title: "Steel column · Detail 02", file: "steel-column-02-metric.png", fileUSA: "steel-column-02-imperial.png", point: "level" },
+    { id: "SC-03", support: "steel-column", title: "Steel column · Detail 03", file: "steel-column-03-metric.png", fileUSA: "steel-column-03-imperial.png", point: "level" },
+    { id: "SC-04", support: "steel-column", title: "Steel column · Detail 04", file: "steel-column-04-metric.png", fileUSA: "steel-column-04-imperial.png", point: "level" },
+    { id: "SB-01", support: "steel-beam", title: "Steel beam · Detail 01", file: "steel-beam-01-metric.png", fileUSA: "steel-beam-01-imperial.png", point: "level" },
+    { id: "SB-02", support: "steel-beam", title: "Steel beam · Detail 02", file: "steel-beam-02-metric.png", fileUSA: "steel-beam-02-imperial.png", point: "level" },
+    { id: "SB-03", support: "steel-beam", title: "Steel beam · Detail 03", file: "steel-beam-03-metric.png", fileUSA: "steel-beam-03-imperial.png", point: "level" },
+    { id: "MW-01", support: "masonry-wall", title: "Masonry wall · Detail 01", file: "masonry-wall-01-metric.png", fileUSA: "masonry-wall-01-imperial.png", point: "level", boulderOnly: true },
+    { id: "MW-02", support: "masonry-wall", title: "Masonry wall · Detail 02", file: "masonry-wall-02-metric.png", fileUSA: "masonry-wall-02-imperial.png", point: "level", boulderOnly: true }
   ];
   var slabLabels = { "hollow-panel-slab": "Hollow panel slab", "solid-concrete-slab": "Solid concrete slab" };
-  var supportLabels = { "concrete-wall": "Solid concrete wall / column", "steel-column": "Steel column", "masonry-wall": "Masonry / brick wall" };
+  var supportLabels = { "concrete-wall": "Solid concrete wall / column", "steel-column": "Steel column", "steel-beam": "Steel beam", "masonry-wall": "Masonry / brick wall" };
   var standardZ = {
     "8": {"1":[7.5], "2":[4.5,7.5]}, "9": {"2":[4.5,8.5]},
     "10": {"2":[5,9.5]}, "11": {"2":[5.5,10.5]},
@@ -46,10 +57,17 @@
     "14": {"3":[4.5,9,13.5]}, "15": {"3":[5,10,14.5]}, "16": {"3":[5.5,11,15.5]}
   };
 
-  function detailImage(d, cls) {
-    return '<img class="' + (cls || "") + '" src="' + DETAIL_PATH + d.file + '" alt="' + d.title + '" loading="lazy">';
+  function detailFile(d) {
+    return state.input && state.input.units === "USA" && d.fileUSA ? d.fileUSA : d.file;
   }
-  function allowedSupports() { return state.type === "boulder" ? ["concrete-wall","steel-column","masonry-wall"] : ["concrete-wall","steel-column"]; }
+  function detailImage(d, cls) {
+    return '<img class="' + (cls || "") + '" src="' + DETAIL_PATH + detailFile(d) + '" alt="' + d.title + '" loading="lazy">';
+  }
+  function attachmentDocumentationHref() {
+    var units = state.input && state.input.units === "USA" ? "USA" : "EU";
+    return "technical-documentation.html?units=" + units + "#attachment-details";
+  }
+  function allowedSupports() { return state.type === "boulder" ? ["concrete-wall","steel-column","steel-beam","masonry-wall"] : ["concrete-wall","steel-column","steel-beam"]; }
   function supportDetails() { return details.filter(function (d) { return d.support === state.support && (!d.boulderOnly || state.type === "boulder"); }); }
   function floorDetails() { return details.filter(function (d) { return d.support === "concrete-floor" && d.slab === state.slab; }); }
   function baseDetail() { return floorDetails().find(function (d) { return d.id === state.baseDetailId; }) || floorDetails()[0]; }
@@ -63,7 +81,7 @@
     return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '">'
       + '<button class="attachment-detail-choice" type="button" ' + attribute + '="' + d.id + '" data-preview-detail="' + d.id + '" aria-pressed="' + selected + '">'
       + '<b>' + d.id + '</b><span>' + detailName(d) + '</span>'
-      + (selected ? '<em>Selected</em>' : '') + '</button>'
+      + '<em data-state="' + (selected ? 'selected' : 'select') + '">' + (selected ? 'Selected' : 'Select') + '</em></button>'
       + '<button class="attachment-detail-open" type="button" data-full-detail="' + d.id + '" aria-label="Open full detail ' + d.id + '">View</button></div>';
   }
 
@@ -92,14 +110,14 @@
     var levels = state.type === "boulder" ? 1 : Math.max(1, Number(state.input.levels) || 1);
     root.innerHTML = '<section class="attachment-config">'
       + '<div class="attachment-config-head"><div><span>Attachment configuration</span><h2>Select the supporting slab and attachment method</h2><p>These selections filter the applicable standard details. They do not change the preliminary load values.</p></div>'
-      + '<a href="technical-documentation.html#attachment-details">View full documentation</a></div>'
-      + '<div class="attachment-support attachment-option-row"><span class="attachment-label">1 · Supporting slab</span><div class="seg" id="attachment-slab-buttons">'
+      + '</div>'
+      + '<div class="attachment-support attachment-option-row"><div class="attachment-option-label-row"><span class="attachment-label">1 · Select the supporting slab</span><a href="' + attachmentDocumentationHref() + '">View full documentation</a></div><div class="seg" id="attachment-slab-buttons">'
       + Object.keys(slabLabels).map(function (s) { return '<button type="button" data-slab="' + s + '" aria-pressed="' + (s === state.slab) + '">' + slabLabels[s] + "</button>"; }).join("")
       + "</div></div>"
       + '<div class="attachment-support attachment-base-details"><div class="attachment-detail-list" id="attachment-floor-detail-buttons">'
       + floorDetails().map(function (item) { return detailChoice(item, "data-base-detail", item.id === state.baseDetailId); }).join("")
       + "</div></div>"
-      + '<div class="attachment-support attachment-option-row"><span class="attachment-label">2 · Attachment method</span><div class="seg" id="attachment-support-buttons">'
+      + '<div class="attachment-support attachment-option-row"><div class="attachment-option-label-row"><span class="attachment-label">2 · Choose attachment method</span><a href="' + attachmentDocumentationHref() + '">View full documentation</a></div><div class="seg" id="attachment-support-buttons">'
       + allowedSupports().map(function (s) { return '<button type="button" data-support="' + s + '" aria-pressed="' + (s === state.support) + '">' + supportLabels[s] + "</button>"; }).join("")
       + "</div></div>"
       + '<div class="attachment-detail-list" id="attachment-detail-buttons">'
@@ -110,6 +128,35 @@
       + '<div class="attachment-viewport" id="attachment-viewport" aria-label="Drag to move the drawing">' + acsSvg(levels) + '</div></div><div class="attachment-hover-card" id="attachment-preview" hidden></div></div>'
       + "</section>";
     wire();
+  }
+
+  // Vasi #4.1: draw the chosen supporting slab where the reference green circle
+  // sits (bottom-centre, at the base of the middle column). No selection yet -> a
+  // green placeholder circle marks the spot.
+  function slabGlyphSvg(cx, cy, slab, interactive) {
+    // When a base detail is chosen the slab behaves like the red attachment
+    // points: hover shows the preview card, click opens the full detail (Vasi).
+    var gAttrs = interactive
+      ? ' class="acs-slab attachment-point" data-point="base" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Supporting slab base detail"'
+      : ' class="acs-slab"';
+    if (!slab) {
+      return '<g' + gAttrs + '><circle class="acs-slab-placeholder" cx="' + cx + '" cy="' + cy + '" r="12"/>'
+        + '<text class="acs-slab-label" x="' + cx + '" y="' + (cy - 18) + '" text-anchor="middle">Select the supporting slab</text></g>';
+    }
+    var w = 92, h = 16, x = cx - w / 2, y = cy - 3;
+    var body = '<rect class="acs-slab-body" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"/>';
+    var fill = "";
+    if (slab === "hollow") {
+      for (var k = 0; k < 5; k++) fill += '<circle class="acs-slab-core" cx="' + (x + 13 + k * 16.5) + '" cy="' + (y + h / 2) + '" r="4.4"/>';
+    } else {
+      var hs = "";
+      for (var m = 0; m < 6; m++) hs += "M" + (x + 6 + m * 15) + " " + (y + h) + "l9 -" + h;
+      fill = '<path class="acs-slab-hatch" d="' + hs + '"/>';
+    }
+    var label = slab === "hollow" ? "Hollow panel slab" : "Solid concrete slab";
+    return '<g' + gAttrs + '>' + body + fill
+      + '<text class="acs-slab-label" x="' + cx + '" y="' + (cy - 16) + '" text-anchor="middle">' + label + '</text>'
+      + (interactive ? '<title>Supporting slab base detail · click to preview</title>' : '') + '</g>';
   }
 
   function acsSvg(levels) {
@@ -133,9 +180,10 @@
     var topY = baseY - v.height * scaleZ;
     var levelYs = zValues.map(function (z) { return baseY - z * scaleZ; });
     var visualOnly = root && root.getAttribute("data-visual-only") === "true";
+    var sel = state.selected || {};
     var hasAttachmentDetail = !!selectedDetail();
     var circles = visualOnly ? "" : '<circle class="attachment-point base-point" data-point="base" cx="' + mid + '" cy="' + baseY + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Base attachment detail"/>';
-    var beams = "", labels = "", dims = "";
+    var beams = "", labels = "", dims = "", pointMarkers = "";
     levelYs.forEach(function (y, i) {
       // Match the roof contour slope exactly: +12 px at the left and -12 px
       // at the right across the same span, so all attachment levels are parallel.
@@ -143,8 +191,15 @@
       beams += '<line class="acs-full-beam" x1="' + left + '" y1="' + yl + '" x2="' + right + '" y2="' + yr + '"/>';
       [left,mid,right].forEach(function (cx, j) {
         var cy = yl + (yr-yl) * ((cx-left)/(right-left));
-        if (hasAttachmentDetail) circles += '<circle class="attachment-point" data-point="level" data-level="' + (i+1) + '" cx="' + cx + '" cy="' + cy + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment level ' + (i+1) + ' detail"/>';
+        if (!visualOnly && hasAttachmentDetail) circles += '<circle class="attachment-point" data-point="level" data-level="' + (i+1) + '" cx="' + cx + '" cy="' + cy + '" r="8" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment level ' + (i+1) + ' detail"/>';
       });
+      if (visualOnly) {
+        pointMarkers += '<circle class="acs-column-point' + (hasAttachmentDetail ? ' attachment-point' : '') + '"'
+          + (hasAttachmentDetail ? ' data-point="level" data-level="' + (i+1) + '" tabindex="0" role="button" cursor="pointer" pointer-events="all" aria-label="Attachment point X' + (i+1) + ' detail"' : '')
+          + ' cx="' + mid + '" cy="' + y + '" r="8"><title>Attachment point X' + (i+1) + (hasAttachmentDetail ? ' · ' + selectedDetail().id : '') + '</title></circle>';
+        var pointLabelY = y - (i === levelYs.length - 1 ? 22 : 12);
+        pointMarkers += '<text class="acs-column-point-label" x="' + (mid+18) + '" y="' + pointLabelY + '">X' + (i+1) + '</text>';
+      }
       var rawForce = state.levelForces[i], rawDeadForce = state.deadLevelForces[i];
       var force = Number(rawForce), deadForce = Number(rawDeadForce);
       var negative = isFinite(force) && force < 0, deadNegative = isFinite(deadForce) && deadForce < 0;
@@ -155,23 +210,23 @@
       var labelX = mid - 24;
       var lineAtLabel = yl + (yr-yl) * ((labelX-left)/(right-left));
       var labelY = lineAtLabel + 20;
-      labels += '<text class="acs-lx-label is-ll" text-anchor="end" x="' + labelX + '" y="' + labelY + '">' + forceLabel + '</text>';
-      labels += '<text class="acs-lx-label is-dl" text-anchor="end" x="' + labelX + '" y="' + (labelY+17) + '">' + deadForceLabel + '</text>';
+      if (state.showForces) labels += '<text class="acs-lx-label is-ll" text-anchor="end" x="' + labelX + '" y="' + labelY + '">' + forceLabel + '</text>';
+      if (state.showForces) labels += '<text class="acs-lx-label is-dl" text-anchor="end" x="' + labelX + '" y="' + (labelY+17) + '">' + deadForceLabel + '</text>';
       var arrowPath = negative
         ? "M" + (mid-18) + " " + (y-5) + "l-38 -22"
         : "M" + (mid+18) + " " + (y+5) + "l38 22";
       var deadArrowPath = deadNegative
         ? "M" + (mid-8) + " " + (y+14) + "l-38 -22"
         : "M" + (mid+28) + " " + (y+22) + "l38 22";
-      labels += '<path class="acs-load-arrow is-ll" d="' + arrowPath + '" marker-end="url(#config-arrow-ll)"><title>Lx' + (i+1) + ' LL = ' + (isFinite(force) ? force : "—") + '</title></path>';
-      labels += '<path class="acs-load-arrow is-dl" d="' + deadArrowPath + '" marker-end="url(#config-arrow-dl)"><title>Lx' + (i+1) + ' DL = ' + (isFinite(deadForce) ? deadForce : "—") + '</title></path>';
+      if (state.showForces) labels += '<path class="acs-load-arrow is-ll" d="' + arrowPath + '" marker-end="url(#config-arrow-ll)"><title>Lx' + (i+1) + ' LL = ' + (isFinite(force) ? force : "—") + '</title></path>';
+      if (state.showForces) labels += '<path class="acs-load-arrow is-dl" d="' + deadArrowPath + '" marker-end="url(#config-arrow-dl)"><title>Lx' + (i+1) + ' DL = ' + (isFinite(deadForce) ? deadForce : "—") + '</title></path>';
       // Dimension ticks follow the actual red points on the sloped right-hand
       // attachment line, rather than the unsloped centre-line coordinates.
       var dimY = yr;
       var lower = i === 0 ? baseY : levelYs[i-1] - 12;
       dims += '<line class="acs-dim" x1="658" y1="' + dimY + '" x2="658" y2="' + lower + '"/>';
       dims += '<line class="acs-guide" x1="640" y1="' + dimY + '" x2="670" y2="' + dimY + '"/>';
-      dims += '<text class="acs-dim-label" x="674" y="' + ((dimY+lower)/2+4) + '">Z' + (i+1) + ' = ' + (i === 0 ? zValues[0] : zValues[i]-zValues[i-1]).toFixed(1) + ' m</text>';
+      dims += '<text class="acs-dim-label" x="674" y="' + ((dimY+lower)/2+4) + '">' + ((sel.height && (state.type === 'boulder' || sel.levels)) ? 'Z' + (i+1) + ' = ' + (i === 0 ? zValues[0] : zValues[i]-zValues[i-1]).toFixed(1) + ' m' : 'Z' + (i+1)) + '</text>';
     });
     var contourTop = [[150,420],[270,435],[365,410],[460,428],[585,400]];
     var shift = Math.max(18, v.x * 24);
@@ -182,23 +237,32 @@
     var contourDimTop = contourTop[1], contourDimBottom = contourBottom[1];
     function groundY(x) { return baseY + 13 + (x - 95) * (-27 / 555); }
     var spanGap = 14;
+    // Offset the extra columns to the outer quarter of each bay so they clear the
+    // centred "A = ..." span labels and the Lx force labels (Vasi #5).
+    var leftBayX = left + (mid - left) * 0.26, rightBayX = right - (right - mid) * 0.26;
+    var slabAndColumns = visualOnly
+      ? '<g class="acs-extra-columns">'
+        + '<line class="acs-extra-column" x1="' + leftBayX + '" y1="' + (topY + 8) + '" x2="' + leftBayX + '" y2="' + baseY + '"/>'
+        + '<line class="acs-extra-column" x1="' + rightBayX + '" y1="' + (topY + 8) + '" x2="' + rightBayX + '" y2="' + baseY + '"/></g>'
+        + slabGlyphSvg(mid, baseY, state.columnSlab, !!(state.columnSlab && state.columnBaseDetail))
+      : '';
     return '<svg viewBox="0 0 900 550" role="img" aria-label="Interactive ACS geometry and attachment points">'
       + '<defs><marker id="config-arrow-ll" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="acs-ll-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="config-arrow-dl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="acs-dl-arrowhead" d="M0 0L10 5L0 10Z"/></marker><marker id="acs-tech-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="acs-tech-arrowhead" d="M0 0L10 5L0 10Z"/></marker></defs>'
       + '<path class="acs-full-roof" d="M' + left + " " + (topY+12) + 'L' + right + " " + (topY-12) + '"/><path class="acs-full-ground" d="M95 ' + (baseY+13) + 'L650 ' + (baseY-14) + '"/>'
       + '<rect class="acs-full-column" x="' + (left-7) + '" y="' + (topY+12) + '" width="14" height="' + (baseY-(topY+12)+12) + '"/><rect class="acs-full-column" x="' + (mid-7) + '" y="' + topY + '" width="14" height="' + (baseY-topY) + '"/><rect class="acs-full-column" x="' + (right-7) + '" y="' + (topY-12) + '" width="14" height="' + (baseY-(topY-12)-12) + '"/>'
-      + beams + labels
+      + beams + pointMarkers + labels
       + '<g class="acs-callouts"><text x="18" y="205"><tspan x="18">Existing column</tspan><tspan x="18" dy="14">of the building</tspan></text><path d="M105 214L' + left + ' ' + (baseY-110) + '" marker-end="url(#acs-tech-arrow)"/>'
       + '<text x="430" y="' + (beamTargetY-42) + '">Walltopia beam</text><path d="M475 ' + (beamTargetY-35) + 'L470 ' + beamTargetY + '" marker-end="url(#acs-tech-arrow)"/></g>'
       + '<polygon class="acs-contour" points="' + polygon + '"/><polyline class="acs-top-contour" points="' + contourTop.map(function(p){return p.join(",");}).join(" ") + '"/>'
       + '<g class="acs-contour-notes"><text class="acs-contour-label" x="78" y="510"><tspan x="78">Climbing surface</tspan><tspan class="is-strong" x="78" dy="14">bottom contour</tspan></text><path d="M145 493L132 458L' + contourTop[0][0] + ' ' + contourTop[0][1] + '" marker-end="url(#acs-tech-arrow)"/>'
       + '<text class="acs-contour-label" x="650" y="510"><tspan x="650">Climbing surface</tspan><tspan class="is-strong" x="650" dy="14">top contour</tspan></text><path d="M650 493L635 470L' + contourBottom[4][0] + ' ' + contourBottom[4][1] + '" marker-end="url(#acs-tech-arrow)"/></g>'
-      + '<g class="acs-span-on-wall"><line x1="' + (left+spanGap) + '" y1="' + (groundY(left+spanGap)-10) + '" x2="' + (mid-spanGap) + '" y2="' + (groundY(mid-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + ((left+mid)/2) + '" y="' + (groundY((left+mid)/2)-18) + '" text-anchor="middle">A = ' + v.a.toFixed(1) + ' m</text>'
-      + '<line x1="' + (mid+spanGap) + '" y1="' + (groundY(mid+spanGap)-10) + '" x2="' + (right-spanGap) + '" y2="' + (groundY(right-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + ((mid+right)/2) + '" y="' + (groundY((mid+right)/2)-18) + '" text-anchor="middle">A = ' + v.a.toFixed(1) + ' m</text><title>A — span between columns</title></g>'
-      + '<g class="acs-contour-dim"><line x1="' + contourDimTop[0] + '" y1="' + contourDimTop[1] + '" x2="' + contourDimBottom[0] + '" y2="' + contourDimBottom[1] + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + (contourDimBottom[0]+14) + '" y="' + ((contourDimTop[1]+contourDimBottom[1])/2+4) + '">X = ' + v.x.toFixed(1) + ' m</text></g>'
-      + dims + '<line class="acs-dim" x1="760" y1="' + (topY-12) + '" x2="760" y2="' + baseY + '"/><text class="acs-dim-label" x="775" y="' + ((topY+baseY)/2) + '">H = ' + v.height.toFixed(0) + ' m</text>'
+      + '<g class="acs-span-on-wall"><line x1="' + (left+spanGap) + '" y1="' + (groundY(left+spanGap)-10) + '" x2="' + (mid-spanGap) + '" y2="' + (groundY(mid-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + ((left+mid)/2) + '" y="' + (groundY((left+mid)/2)-18) + '" text-anchor="middle">' + (sel.span ? 'A = ' + v.a.toFixed(1) + ' m' : 'A') + '</text>'
+      + '<line x1="' + (mid+spanGap) + '" y1="' + (groundY(mid+spanGap)-10) + '" x2="' + (right-spanGap) + '" y2="' + (groundY(right-spanGap)-10) + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + ((mid+right)/2) + '" y="' + (groundY((mid+right)/2)-18) + '" text-anchor="middle">' + (sel.span ? 'A = ' + v.a.toFixed(1) + ' m' : 'A') + '</text><title>A — span between columns</title></g>'
+      + '<g class="acs-contour-dim"><line x1="' + contourDimTop[0] + '" y1="' + contourDimTop[1] + '" x2="' + contourDimBottom[0] + '" y2="' + contourDimBottom[1] + '" marker-start="url(#acs-tech-arrow)" marker-end="url(#acs-tech-arrow)"/><text x="' + (contourDimBottom[0]+14) + '" y="' + ((contourDimTop[1]+contourDimBottom[1])/2+4) + '">' + (sel.overhang ? 'X = ' + v.x.toFixed(1) + ' m' : 'X') + '</text></g>'
+      + dims + '<line class="acs-dim" x1="760" y1="' + (topY-12) + '" x2="760" y2="' + baseY + '"/><text class="acs-dim-label" x="775" y="' + ((topY+baseY)/2) + '">' + (sel.height ? 'H = ' + v.height.toFixed(0) + ' m' : 'H') + '</text>'
       + '<g class="acs-axis" transform="translate(820 410)"><path d="M0 0V-48" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L42-9" marker-end="url(#acs-tech-arrow)"/><path d="M0 0L25 32" marker-end="url(#acs-tech-arrow)"/><text x="-7" y="-55">Z</text><text x="48" y="-7">Y</text><text x="28" y="43">X</text></g>'
       + (hasAttachmentDetail ? '<text class="acs-caption" x="28" y="30">Hover, focus or click a red point to preview its attachment detail</text>' : '')
-      + circles + '</svg>';
+      + slabAndColumns + circles + '</svg>';
   }
   function previewHtml(d, label) {
     return '<span class="attachment-label">' + label + '</span><h3>' + d.id + " · " + d.title.split("·")[0].trim() + '</h3>' + detailImage(d, "attachment-preview-image") + '<button class="attachment-full-trigger" type="button" data-full-detail="' + d.id + '">View full detail</button>';
@@ -225,7 +289,7 @@
     var modal = ensureDetailModal();
     modal.querySelector("#attachment-modal-title").textContent = d.id + " · " + d.title.split("·")[0].trim();
     var image = modal.querySelector(".attachment-modal-image");
-    image.src = DETAIL_PATH + d.file;
+    image.src = DETAIL_PATH + detailFile(d);
     image.alt = d.title;
     modal.hidden = false;
     document.body.classList.add("attachment-modal-open");
@@ -398,18 +462,34 @@
     if (!e.detail || !e.detail.input) return;
     state.input = e.detail.input;
     state.type = state.input.type || "wall";
+    state.support = state.input.columnSupportingStructure || state.support;
+    state.detail = state.input.columnAttachmentDetail || null;
     state.levelForces = (e.detail.snapshot && e.detail.snapshot.levelForces) || [];
     state.deadLevelForces = (e.detail.snapshot && e.detail.snapshot.levelDeadForces) || [];
     state.forceUnit = (e.detail.snapshot && e.detail.snapshot.unit) || state.forceUnit;
+    state.columnSlab = state.input.columnSupportingSlab || null;
+    state.columnBaseDetail = state.input.columnBaseDetail || null;
+    if (state.columnSlab) state.slab = state.columnSlab === "hollow" ? "hollow-panel-slab" : "solid-concrete-slab";
+    if (state.columnBaseDetail) state.baseDetailId = state.columnBaseDetail;
+    state.showForces = e.detail.showForces !== false;
+    state.selected = e.detail.selected || {};
     render();
   });
   window.WTAttachmentConfiguratorRefresh = function (payload) {
     if (payload && payload.input) {
       state.input = payload.input;
       state.type = state.input.type || "wall";
+      state.support = state.input.columnSupportingStructure || state.support;
+      state.detail = state.input.columnAttachmentDetail || null;
       state.levelForces = (payload.snapshot && payload.snapshot.levelForces) || [];
       state.deadLevelForces = (payload.snapshot && payload.snapshot.levelDeadForces) || [];
       state.forceUnit = (payload.snapshot && payload.snapshot.unit) || state.forceUnit;
+      state.columnSlab = state.input.columnSupportingSlab || null;
+      state.columnBaseDetail = state.input.columnBaseDetail || null;
+      if (state.columnSlab) state.slab = state.columnSlab === "hollow" ? "hollow-panel-slab" : "solid-concrete-slab";
+      if (state.columnBaseDetail) state.baseDetailId = state.columnBaseDetail;
+      state.showForces = payload.showForces !== false;
+      state.selected = payload.selected || {};
     }
     render();
   };

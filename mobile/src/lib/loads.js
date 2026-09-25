@@ -3,7 +3,7 @@
    A calculator "state" is: { units, type, height, levels, span, overhang, force, factored, cap }. */
 
 export function initialState() {
-  return { units: "EU", type: "wall", height: 12, levels: 3, span: 6, overhang: 1, force: 1, factored: false, cap: null };
+  return { units: "EU", type: "wall", height: 12, levels: 3, span: 6, overhang: 1, force: 1, factored: false, cap: null, slab: null };
 }
 
 const uniq = (a) => a.filter((v, i) => a.indexOf(v) === i);

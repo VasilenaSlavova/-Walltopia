@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="icon" href="assets/walltopia-logo.svg" />
-  <link rel="stylesheet" href="styles.css?v=wt184" />
+  <link rel="stylesheet" href="styles.css?v=wt232" />
 </head>
 <body>
   <header class="masthead">
@@ -21,7 +21,7 @@
       <nav class="topnav" aria-label="Primary">
         <a href="index.html" aria-current="page">Load Calculator</a>
         <a href="dashboard.html">My Projects</a>
-        <a href="technical-documentation.html">Technical Documentation</a>
+        <a href="technical-documentation.html"><span class="tech-docs-short">Tech Docs</span><span class="tech-docs-full">Technical Documentation</span></a>
         <a href="ask-engineer.html">Engineering Support</a>
       </nav>
       <div id="auth-slot"></div>
@@ -36,18 +36,18 @@
         <button class="reset-calculator-btn" id="reset-calculator" type="button" aria-label="Reset calculator">↺ Reset</button>
       </div>
 
-      <div class="field">
+      <div class="field" id="field-units">
         <label>Units</label>
         <div class="seg" id="seg-units"></div>
       </div>
 
-      <div class="field">
+      <div class="field" id="field-type">
         <label>Structure type</label>
         <div class="seg" id="seg-type"></div>
         <div class="hint" id="type-hint"></div>
       </div>
 
-      <div class="field">
+      <div class="field" id="field-height">
         <label id="lbl-height">Climbing-surface height</label>
         <div class="chips" id="chips-height"></div>
       </div>
@@ -57,12 +57,12 @@
         <div class="chips small" id="chips-scheme"></div>
       </div>
 
-      <div class="field">
+      <div class="field" id="field-span">
         <label id="lbl-span">Column span&nbsp;·&nbsp;A <span class="hint">(between building columns)</span></label>
         <div class="chips" id="chips-span"></div>
       </div>
 
-      <div class="field">
+      <div class="field" id="field-overhang">
         <label id="lbl-overhang">Overhang&nbsp;·&nbsp;X <span class="hint">(top − bottom contour)</span></label>
         <div class="chips" id="chips-overhang"></div>
       </div>
@@ -70,6 +70,11 @@
       <div class="field" id="field-force-level">
         <label>Live load force level <span class="hint">(attachment level taken at its maximum live load)</span></label>
         <div class="chips small" id="chips-force-input"></div>
+      </div>
+
+      <div class="view-loads-row">
+        <button class="view-loads-btn" id="view-loads" type="button">View loads</button>
+        <p class="view-loads-msg" id="view-loads-msg" role="status" hidden></p>
       </div>
 
       <label class="toggle-line">
@@ -96,11 +101,12 @@
     </div>
   </footer>
 
+  <script src="mobile-navigation.js?v=wt2"></script>
   <script src="data.js"></script>
   <script src="api.js?v=wt4"></script>
   <script src="auth-ui.js?v=wt13"></script>
-  <script src="app.js?v=wt86"></script>
-  <script src="attachment-configurator.js?v=wt47"></script>
+  <script src="app.js?v=wt104"></script>
+  <script src="attachment-configurator.js?v=wt58"></script>
   <script src="document-tools.js?v=wt18"></script>
 </body>
 </html>

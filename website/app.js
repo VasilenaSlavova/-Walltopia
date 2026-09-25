@@ -12,12 +12,22 @@
   // ---- state ----
   var S = { units: "EU", type: "wall", height: null, levels: null,
             span: null, overhang: null, force: null, factored: false, cap: null,
-            baseCapacity: null, sideCapacity: null, columnCapacities: {}, attachmentSolution: "single" };
+            baseCapacity: null, sideCapacity: null, columnCapacities: {}, attachmentSolution: "single",
+            // The two attachment options are a decision, not a default: the results stay
+            // closed until one is picked, so nobody reads Option 1 thinking it is "the"
+            // answer. Saved projects arrive with the choice already made.
+            solutionPicked: false,
+            // Vasi #3: loads are revealed on request via the View loads button,
+            // not as a side effect of the last input being picked.
+            loadsRequested: false };
   var selectedInputs = { units: false, type: false, height: false, levels: false, span: false, overhang: false, force: false };
   var singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
-  var columnPointSelection = { support: null, attachmentDetail: null };
+  var columnPointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
   var CALCULATOR_DRAFT_KEY = "walltopia.calculator.draft.v1";
   var schematicView = { scale: 1, panX: 0, panY: 0 };
+  var mobileResultsWasReady = false;
+  var mobileResultsAutoScrollEnabled = false;
+  var showMissingFlag = false;   // View loads pressed while inputs incomplete
 
   // ---- derive option sets ----
   // wall height -> sorted list of available schemes (levels)
@@ -47,6 +57,44 @@
     var spans = w ? uniq(w.rows.map(function (r) { return r.a; })).sort(num) : [];
     var over = w ? uniq(w.rows.map(function (r) { return r.x; })).sort(num) : [];
     return { heights: wallHeights, spans: spans, overhangs: over };
+  }
+
+  // ---- input gating (Vasi #2.2 / #3) ----
+  // Option 1 (single-point) reads only the R values, which are identical for
+  // every column span A, so span A is not one of its inputs. Option 2 (beams)
+  // reads the L values, which depend on A.
+  function usesSpan() { return S.attachmentSolution === "beams"; }
+  var FIELD_IDS = { units:"field-units", type:"field-type", height:"field-height",
+    levels:"field-scheme", span:"field-span", overhang:"field-overhang", force:"field-force-level" };
+  var FIELD_LABELS = { units:"Units", type:"Structure type", height:"Climbing-surface height",
+    levels:"Attachment scheme", span:"Column span A", overhang:"Overhang X", force:"Live load force level" };
+  function requiredInputs() {
+    var keys = ["units", "type", "height", "overhang"];
+    if (S.type === "wall") keys.push("levels", "force");
+    if (usesSpan()) keys.push("span");
+    return keys;
+  }
+  function missingInputs() { return requiredInputs().filter(function (k) { return !selectedInputs[k]; }); }
+  function inputsReady() { return missingInputs().length === 0; }
+  // The drawing is available as soon as an option is picked; the load numbers on
+  // it (and the tables and capacity) wait for View loads, the same gate.
+  function loadsVisible() { return S.solutionPicked && S.loadsRequested && inputsReady(); }
+  function applyMissingGlow() {
+    var missing = showMissingFlag ? missingInputs() : [];
+    Object.keys(FIELD_IDS).forEach(function (key) {
+      var el = document.getElementById(FIELD_IDS[key]);
+      if (el) el.classList.toggle("is-missing", missing.indexOf(key) >= 0);
+    });
+    var msg = document.getElementById("view-loads-msg");
+    if (!msg) return;
+    if (missing.length) {
+      msg.hidden = false;
+      msg.textContent = "Select " + missing.map(function (k) { return FIELD_LABELS[k]; }).join(", ") + " to view the loads.";
+    } else { msg.hidden = true; msg.textContent = ""; }
+  }
+  function applyLayoutState() {
+    var main = document.querySelector("main.layout");
+    if (main) main.classList.toggle("is-choosing", !S.solutionPicked);
   }
 
   // ---- unit-aware formatting ----
@@ -79,7 +127,7 @@
       var b = document.createElement("button");
       b.type = "button"; b.textContent = it.label;
       b.setAttribute("aria-pressed", String(it.value === cur));
-      b.onclick = function () { onPick(it.value); };
+      b.onclick = function () { mobileResultsAutoScrollEnabled = true; onPick(it.value); };
       el.appendChild(b);
     });
   }
@@ -90,7 +138,7 @@
       var b = document.createElement("button");
       b.type = "button"; b.textContent = labelFn ? labelFn(v) : v;
       b.setAttribute("aria-pressed", String(v === cur));
-      b.onclick = function () { onPick(v); };
+      b.onclick = function () { mobileResultsAutoScrollEnabled = true; onPick(v); };
       el.appendChild(b);
     });
   }
@@ -192,6 +240,11 @@
     // factored values
     document.getElementById("factored-hint").textContent =
       "(×" + u.dl + " DL, ×" + u.ll + " LL)";
+
+    // Vasi #2.2: Option 1 does not use column span A.
+    var spanField = document.getElementById("field-span");
+    if (spanField) spanField.style.display = usesSpan() ? "" : "none";
+    applyMissingGlow();
   }
 
   function onTypeChange() {
@@ -363,6 +416,21 @@
     return governing;
   }
 
+  function totalColumnHorizontalReaction() {
+    var row = selectedScenarioRow(), total = 0;
+    if (row) {
+      for (var level = 1; level <= columnLevelCount(); level++) {
+        total += (factor(pick(row, "LX" + level + "DL"), "DL") || 0)
+          + (factor(pick(row, "LX" + level + "LL"), "LL") || 0);
+      }
+    }
+    return {
+      value: Math.abs(total),
+      signedValue: total,
+      scenario: row ? (S.type === "wall" ? "Selected force level Z" + row.lvl : "Boulder load case") : null
+    };
+  }
+
   function columnPointTableHtml(values) {
     var rows = [], wall = S.type === "wall" ? DATA.walls[wallKey(S.height, S.levels)] : null;
     for (var level = 1; level <= columnLevelCount(); level++) {
@@ -377,50 +445,61 @@
       + '</tbody></table></div>';
   }
 
+  function attachmentDocumentationHref() {
+    return "technical-documentation.html?units=" + (S.units === "USA" ? "USA" : "EU") + "#attachment-details";
+  }
+
   function singlePointConditionsHtml() {
     var slab = singlePointSelection.slab;
     var details = slab === "hollow" ? ["CF-03"] : slab === "solid" ? ["CF-01","CF-02"] : [];
     var detailNames = { "CF-01": "Base connection detail 01", "CF-02": "Base connection detail 02", "CF-03": "Base connection detail 03" };
     var support = singlePointSelection.support;
-    var supports = S.type === "boulder" ? ["concrete-wall","masonry-wall"] : ["concrete-wall"];
+    var supports = S.type === "boulder" ? ["concrete-wall","steel-beam","masonry-wall"] : ["concrete-wall","steel-beam"];
     if (supports.indexOf(support) < 0) {
       support = null;
       singlePointSelection.support = null;
       singlePointSelection.attachmentDetail = null;
     }
-    var supportLabels = { "concrete-wall": "Solid concrete wall", "masonry-wall": "Masonry / brick wall" };
-    var supportDetails = support === "concrete-wall" ? ["CW-01","CW-03"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
-    return '<section class="single-conditions"><div class="single-section-label">1 · Select the supporting slab</div>'
+    var supportLabels = { "concrete-wall": "Solid concrete wall", "steel-beam": "Steel beam", "masonry-wall": "Masonry / brick wall" };
+    var supportDetails = support === "concrete-wall" ? ["CW-01","CW-03"] : support === "steel-beam" ? ["SB-01","SB-02","SB-03"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
+    return '<section class="single-conditions"><div class="single-section-label single-section-label-with-link">1 · Select the supporting slab<a href="' + attachmentDocumentationHref() + '">View full documentation</a></div>'
       + '<div class="seg single-slab-options"><button type="button" data-single-slab="hollow" aria-pressed="' + (slab === "hollow") + '">Hollow panel slab</button><button type="button" data-single-slab="solid" aria-pressed="' + (slab === "solid") + '">Solid concrete slab</button></div>'
       + (details.length ? '<div class="attachment-detail-list single-detail-list">' + details.map(function (code) {
           var selected = singlePointSelection.detail === code;
-          return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '"><button class="attachment-detail-choice" type="button" data-single-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + detailNames[code] + '</span>' + (selected ? '<em>Selected</em>' : '') + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
+          return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '"><button class="attachment-detail-choice" type="button" data-single-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + detailNames[code] + '</span>' + '<em data-state="' + (selected ? 'selected' : 'select') + '">' + (selected ? 'Selected' : 'Select') + '</em>' + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
         }).join("") + '</div>' : '')
       + '<div class="single-attachment-method"><div class="single-section-label">2 · Choose attachment method</div><div class="seg single-attachment-method-options">'
       + supports.map(function (item) { return '<button type="button" data-single-support="' + item + '" aria-pressed="' + (support === item) + '">' + supportLabels[item] + '</button>'; }).join("") + '</div>'
       + (supportDetails.length ? '<div class="attachment-detail-list single-detail-list single-support-detail-list">' + supportDetails.map(function (code) {
           var selected = singlePointSelection.attachmentDetail === code;
-          return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '"><button class="attachment-detail-choice" type="button" data-single-attachment-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + singleDetailMeta[code].title + '</span>' + (selected ? '<em>Selected</em>' : '') + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
+          return '<div class="attachment-detail-row' + (selected ? ' is-selected' : '') + '"><button class="attachment-detail-choice" type="button" data-single-attachment-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + singleDetailMeta[code].title + '</span>' + '<em data-state="' + (selected ? 'selected' : 'select') + '">' + (selected ? 'Selected' : 'Select') + '</em>' + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
         }).join("") + '</div>' : '')
       + '</div>'
       + '</section>';
   }
 
   var singleDetailMeta = {
-    "CF-01": { title: "Base connection detail 01", file: "concrete-floor-05.png" },
-    "CF-02": { title: "Base connection detail 02", file: "concrete-floor-04.png" },
-    "CF-03": { title: "Base connection detail 03", file: "concrete-floor-03.png" },
-    "CW-01": { title: "Solid concrete wall / column · Detail 01", file: "concrete-wall-03.png" },
-    "CW-02": { title: "Solid concrete wall / column · Detail 02", file: "concrete-wall-02.png" },
-    "CW-03": { title: "Solid concrete wall / column · Detail 03", file: "concrete-wall-01.png" },
-    "SC-01": { title: "Steel column · Detail 01", file: "steel-column-04.png" },
-    "SC-02": { title: "Steel column · Detail 02", file: "steel-column-03.png" },
-    "SC-03": { title: "Steel column · Detail 03", file: "steel-column-02.png" },
-    "SC-04": { title: "Steel column · Detail 04", file: "steel-column-01.png" },
-    "MW-01": { title: "Masonry / brick wall · Detail 01", file: "masonry-wall-02.png" },
-    "MW-02": { title: "Masonry / brick wall · Detail 02", file: "masonry-wall-01.png" }
+    "CF-01": { title: "Base connection detail 01", fileEU: "concrete-floor-01-metric.png", fileUSA: "concrete-floor-01-imperial.png" },
+    "CF-02": { title: "Base connection detail 02", fileEU: "concrete-floor-02-metric.png", fileUSA: "concrete-floor-02-imperial.png" },
+    "CF-03": { title: "Base connection detail 03", fileEU: "concrete-floor-03-metric.png", fileUSA: "concrete-floor-03-imperial.png" },
+    "CW-01": { title: "Solid concrete wall · Detail 01", fileEU: "concrete-wall-01-metric.png", fileUSA: "concrete-wall-01-imperial.png" },
+    "CW-02": { title: "Solid concrete wall · Detail 02", fileEU: "concrete-wall-02-metric.png", fileUSA: "concrete-wall-02-imperial.png" },
+    "CW-03": { title: "Solid concrete wall · Detail 03", fileEU: "concrete-wall-03-metric.png", fileUSA: "concrete-wall-03-imperial.png" },
+    "SC-01": { title: "Steel column · Detail 01", fileEU: "steel-column-01-metric.png", fileUSA: "steel-column-01-imperial.png" },
+    "SC-02": { title: "Steel column · Detail 02", fileEU: "steel-column-02-metric.png", fileUSA: "steel-column-02-imperial.png" },
+    "SC-03": { title: "Steel column · Detail 03", fileEU: "steel-column-03-metric.png", fileUSA: "steel-column-03-imperial.png" },
+    "SC-04": { title: "Steel column · Detail 04", fileEU: "steel-column-04-metric.png", fileUSA: "steel-column-04-imperial.png" },
+    "SB-01": { title: "Steel beam · Detail 01", fileEU: "steel-beam-01-metric.png", fileUSA: "steel-beam-01-imperial.png" },
+    "SB-02": { title: "Steel beam · Detail 02", fileEU: "steel-beam-02-metric.png", fileUSA: "steel-beam-02-imperial.png" },
+    "SB-03": { title: "Steel beam · Detail 03", fileEU: "steel-beam-03-metric.png", fileUSA: "steel-beam-03-imperial.png" },
+    "MW-01": { title: "Masonry / brick wall · Detail 01", fileEU: "masonry-wall-01-metric.png", fileUSA: "masonry-wall-01-imperial.png" },
+    "MW-02": { title: "Masonry / brick wall · Detail 02", fileEU: "masonry-wall-02-metric.png", fileUSA: "masonry-wall-02-imperial.png" }
   };
-  function singleDetailImagePath(code) { return "manuals/attachment/details/" + singleDetailMeta[code].file; }
+  function singleDetailImagePath(code) {
+    var meta = singleDetailMeta[code];
+    var file = S.units === "USA" && meta.fileUSA ? meta.fileUSA : (meta.fileEU || meta.file);
+    return "manuals/attachment/details/" + file + "?v=wt5";
+  }
   function closeSingleDetailPreview() {
     var preview = document.getElementById("single-detail-preview");
     if (preview) preview.hidden = true;
@@ -442,8 +521,8 @@
     var rect = trigger.getBoundingClientRect();
     if (trigger.closest(".column-conditions")) {
       var resultRect = document.getElementById("result-root").getBoundingClientRect();
-      var containedLeft = Math.min(rect.left, resultRect.right - preview.offsetWidth - 12);
-      preview.style.left = Math.max(resultRect.left + 12, containedLeft) + "px";
+      var centeredLeft = resultRect.left + (resultRect.width - preview.offsetWidth) / 2;
+      preview.style.left = Math.max(12, Math.min(centeredLeft, window.innerWidth - preview.offsetWidth - 12)) + "px";
       var below = rect.bottom + 8;
       preview.style.top = Math.max(12, Math.min(below, window.innerHeight - preview.offsetHeight - 12)) + "px";
       return;
@@ -487,29 +566,44 @@
     return '<section class="single-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div>'
       + '<div class="single-capacity-fields">'
       + '<label><span>Allowable vertical reaction at base point (X0)</span><div class="caprow"><input id="base-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (S.baseCapacity===null?'':S.baseCapacity) + '" placeholder="Base load capacity"><div class="unit">' + U().force + '</div></div></label>'
-      + '<label><span>Allowable total horizontal load on one column</span><div class="caprow"><input id="side-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (horizontalChecked?S.sideCapacity:'') + '" placeholder="Column load capacity"><div class="unit">' + U().force + '</div></div></label>'
+      + '<label><span>Allowable total horizontal load</span><div class="caprow"><input id="side-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (horizontalChecked?S.sideCapacity:'') + '" placeholder="Side load capacity"><div class="unit">' + U().force + '</div></div></label>'
       + '<button class="cap-check-btn" id="single-capacity-submit" type="button">Check capacity</button></div>' + statuses + '</section>';
   }
 
   function columnPointConditionsHtml() {
+    // Vasi #4: Option 2 also selects the supporting slab (as Option 1 does),
+    // then the attachment method.
+    var slab = columnPointSelection.slab;
+    var baseDetails = slab === "hollow" ? ["CF-03"] : slab === "solid" ? ["CF-01","CF-02"] : [];
+    var baseNames = { "CF-01": "Base connection detail 01", "CF-02": "Base connection detail 02", "CF-03": "Base connection detail 03" };
+    if (baseDetails.indexOf(columnPointSelection.detail) < 0) columnPointSelection.detail = null;
+
     var support = columnPointSelection.support;
     var supports = S.type === "boulder" ? ["concrete-wall","steel-column","masonry-wall"] : ["concrete-wall","steel-column"];
     if (supports.indexOf(support) < 0) { support=null; columnPointSelection.support=null; columnPointSelection.attachmentDetail=null; }
-    var labels = { "concrete-wall":"Solid concrete column", "steel-column":"Steel column", "masonry-wall":"Masonry / brick wall" };
+    var labels = { "concrete-wall":"Solid concrete column", "steel-column":"Steel column", "steel-beam":"Steel beam", "masonry-wall":"Masonry / brick wall" };
     var details = support === "concrete-wall" ? ["CW-02"] : support === "steel-column" ? ["SC-01","SC-02","SC-03","SC-04"] : support === "masonry-wall" ? ["MW-01","MW-02"] : [];
     if (details.indexOf(columnPointSelection.attachmentDetail) < 0) columnPointSelection.attachmentDetail = null;
-    return '<section class="single-conditions column-conditions"><div class="single-section-label">Choose attachment method</div><div class="seg single-attachment-method-options">'
+    return '<section class="single-conditions column-conditions">'
+      + '<div class="single-section-label single-section-label-with-link">1 \u00b7 Select the supporting slab<a href="' + attachmentDocumentationHref() + '">View full documentation</a></div>'
+      + '<div class="seg single-slab-options"><button type="button" data-column-slab="hollow" aria-pressed="' + (slab === "hollow") + '">Hollow panel slab</button><button type="button" data-column-slab="solid" aria-pressed="' + (slab === "solid") + '">Solid concrete slab</button></div>'
+      + (baseDetails.length ? '<div class="attachment-detail-list single-detail-list">' + baseDetails.map(function (code) {
+          var sel = columnPointSelection.detail === code;
+          return '<div class="attachment-detail-row' + (sel?' is-selected':'') + '"><button class="attachment-detail-choice" type="button" data-column-base-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + sel + '"><b>' + code + '</b><span>' + baseNames[code] + '</span>' + '<em data-state="' + (sel ? 'selected' : 'select') + '">' + (sel ? 'Selected' : 'Select') + '</em>' + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
+        }).join("") + '</div>' : '')
+      + '<div class="single-attachment-method"><div class="single-section-label">2 \u00b7 Choose attachment method</div><div class="seg single-attachment-method-options' + (supports.length > 2 ? ' is-two-row' : '') + '">'
       + supports.map(function (item) { return '<button type="button" data-column-support="' + item + '" aria-pressed="' + (support === item) + '">' + labels[item] + '</button>'; }).join("") + '</div>'
       + (details.length ? '<div class="attachment-detail-list single-detail-list">' + details.map(function (code) {
           var selected=columnPointSelection.attachmentDetail===code;
-          var title = code === "CW-02" ? "Solid concrete column · Detail 02" : singleDetailMeta[code].title;
-          return '<div class="attachment-detail-row' + (selected?' is-selected':'') + '"><button class="attachment-detail-choice" type="button" data-column-attachment-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + title + '</span>' + (selected?'<em>Selected</em>':'') + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
-        }).join("") + '</div>' : '') + '</section>';
+          var title = code === "CW-02" ? "Solid concrete column \u00b7 Detail 02" : singleDetailMeta[code].title;
+          return '<div class="attachment-detail-row' + (selected?' is-selected':'') + '"><button class="attachment-detail-choice" type="button" data-column-attachment-detail="' + code + '" data-single-preview="' + code + '" aria-pressed="' + selected + '"><b>' + code + '</b><span>' + title + '</span>' + '<em data-state="' + (selected ? 'selected' : 'select') + '">' + (selected ? 'Selected' : 'Select') + '</em>' + '</button><button class="attachment-detail-open" type="button" data-single-view="' + code + '" aria-label="Open full detail ' + code + '">View</button></div>';
+        }).join("") + '</div>' : '')
+      + '</div></section>';
   }
 
   function columnSchematicHtml() {
     var values = columnPointValues(), count = columnLevelCount();
-    var methodLabels = { "concrete-wall":"Solid concrete wall / column", "steel-column":"Steel column", "masonry-wall":"Masonry / brick wall" };
+    var methodLabels = { "concrete-wall":"Solid concrete wall / column", "steel-column":"Steel column", "steel-beam":"Steel beam", "masonry-wall":"Masonry / brick wall" };
     var method = columnPointSelection.support ? methodLabels[columnPointSelection.support] : "Select an attachment method";
     var detail = columnPointSelection.attachmentDetail ? " · " + columnPointSelection.attachmentDetail : "";
     var rows = "", top = 54, bottom = 342, columnX = 250;
@@ -545,16 +639,23 @@
   }
 
   function columnCapacityHtml() {
-    var fields="", statuses="", allChecked=true, allOk=true;
-    for (var level=1;level<=columnLevelCount();level++) {
-      var key="LX"+level, capacity=S.columnCapacities[key], governing=governingLX(level), checked=capacity!==undefined&&capacity!==null&&!isNaN(capacity), ok=checked&&governing.value<=capacity;
-      if (!checked) allChecked=false;
-      if (checked&&!ok) allOk=false;
-      fields += '<label><span>Allowable horizontal load at ' + key + '</span><div class="caprow"><input data-column-capacity="' + key + '" type="number" inputmode="decimal" min="0" step="any" value="' + (checked?capacity:'') + '" placeholder="' + key + ' capacity"><div class="unit">' + U().force + '</div></div></label>';
-      if (checked) statuses += '<div class="column-capacity-point"><strong>' + key + '</strong><span>' + fmtForce(governing.value) + ' ' + U().force + ' required vs ' + fmtForce(capacity) + ' ' + U().force + ' capacity</span><em class="' + (ok?'is-ok':'is-bad') + '">' + (ok?'Applicable':'Exceeds capacity') + '</em></div>';
-    }
-    var summary=allChecked?'<div class="single-capacity-status ' + (allOk?'is-ok':'is-bad') + '"><strong>' + (allOk?'Applicable':'Exceeds capacity') + '</strong><span>Capacity checked independently at each building-column point.</span></div>':'';
-    return '<section class="single-capacity column-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div><div class="column-capacity-controls"><div class="column-capacity-fields">' + fields + '</div><button class="cap-check-btn column-capacity-submit" id="column-capacity-submit" type="button">Check capacity</button></div>' + summary + (statuses?'<div class="column-capacity-statuses">'+statuses+'</div>':'') + '</section>';
+    // Vasi #6: Option 2 checks both the vertical base reaction and the horizontal
+    // (side) load, the same pair Option 1 offers.
+    var side = S.columnCapacities.total, base = S.columnCapacities.base;
+    var sideRequired = totalColumnHorizontalReaction();
+    var baseRequired = governingRZ0();
+    var sideChecked = side !== undefined && side !== null && !isNaN(side);
+    var baseChecked = base !== undefined && base !== null && !isNaN(base);
+    var sideOk = sideChecked && sideRequired.value <= Number(side);
+    var baseOk = baseChecked && baseRequired.value <= Number(base);
+    var statuses = "";
+    if (baseChecked) statuses += '<div class="single-capacity-status ' + (baseOk?'is-ok':'is-bad') + '"><strong>' + (baseOk?'Applicable':'Exceeds capacity') + '</strong><span>Required vertical reaction at column base: ' + fmtForce(baseRequired.value) + ' ' + U().force + (baseRequired.scenario?' \u00b7 '+baseRequired.scenario:'') + '</span></div>';
+    if (sideChecked) statuses += '<div class="single-capacity-status ' + (sideOk?'is-ok':'is-bad') + '"><strong>' + (sideOk?'Applicable':'Exceeds capacity') + '</strong><span>Required horizontal load on one column: ' + fmtForce(sideRequired.value) + ' ' + U().force + ' \u00b7 \u03a3(LXi DL + LXi LL)' + (sideRequired.scenario?' \u00b7 '+sideRequired.scenario:'') + '</span></div>';
+    return '<section class="single-capacity column-capacity"><div class="single-section-label">Check capacity <span>(optional)</span></div>'
+      + '<div class="single-capacity-fields">'
+      + '<label><span>Allowable vertical reaction at column base</span><div class="caprow"><input id="column-base-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (baseChecked?base:'') + '" placeholder="Base load capacity"><div class="unit">' + U().force + '</div></div></label>'
+      + '<label><span>Allowable total horizontal load</span><div class="caprow"><input id="column-capacity-input" type="number" inputmode="decimal" min="0" step="any" value="' + (sideChecked?side:'') + '" placeholder="Side load capacity"><div class="unit">' + U().force + '</div></div></label>'
+      + '<button class="cap-check-btn" id="column-capacity-submit" type="button">Check capacity</button></div>' + statuses + '</section>';
   }
 
   function refreshSingleCapacity() {
@@ -631,6 +732,15 @@
 
   function wireColumnConditionControls(root) {
     root = root || document;
+    root.querySelectorAll("[data-column-slab]").forEach(function (button) { button.addEventListener("click", function () {
+      columnPointSelection.slab = button.getAttribute("data-column-slab");
+      columnPointSelection.detail = null;
+      refreshColumnConditions();
+    }); });
+    root.querySelectorAll("[data-column-base-detail]").forEach(function (button) { button.addEventListener("click", function () {
+      columnPointSelection.detail = button.getAttribute("data-column-base-detail");
+      refreshColumnConditions();
+    }); });
     root.querySelectorAll("[data-column-support]").forEach(function (button) { button.addEventListener("click", function () {
       columnPointSelection.support = button.getAttribute("data-column-support");
       columnPointSelection.attachmentDetail = null;
@@ -652,14 +762,12 @@
     wireSingleCapacityControls(document.querySelector(".single-point-section:not(.column-point-section) .single-capacity"));
     var columnSubmit=document.getElementById("column-capacity-submit");
     if (columnSubmit) columnSubmit.addEventListener("click",function () {
-      var next={},valid=true;
-      document.querySelectorAll("[data-column-capacity]").forEach(function (input) {
-        var raw=input.value.trim(),key=input.getAttribute("data-column-capacity");
-        if (raw==="") return;
-        if (!isFinite(Number(raw))||Number(raw)<0) { valid=false; return; }
-        next[key]=Number(raw);
-      });
-      if (!valid) return;
+      var baseInput=document.getElementById("column-base-capacity-input");
+      var sideInput=document.getElementById("column-capacity-input");
+      var baseRaw=baseInput?baseInput.value.trim():"", sideRaw=sideInput?sideInput.value.trim():"";
+      var next={};
+      if (baseRaw!=="" && isFinite(Number(baseRaw)) && Number(baseRaw)>=0) next.base=Number(baseRaw);
+      if (sideRaw!=="" && isFinite(Number(sideRaw)) && Number(sideRaw)>=0) next.total=Number(sideRaw);
       S.columnCapacities=next;
       renderResults();
     });
@@ -669,58 +777,112 @@
     document.querySelectorAll("[data-result-option]").forEach(function (button) {
       button.addEventListener("click", function () {
         S.attachmentSolution = button.getAttribute("data-result-option");
-        document.querySelectorAll("[data-result-option]").forEach(function (item) {
-          var active=item.getAttribute("data-result-option")===S.attachmentSolution;
-          item.setAttribute("aria-selected",String(active));
-          item.setAttribute("tabindex",active?"0":"-1");
-        });
-        document.querySelectorAll("[data-result-section]").forEach(function (section) {
-          section.hidden=section.getAttribute("data-result-section")!==S.attachmentSolution;
-        });
-        try { localStorage.setItem(CALCULATOR_DRAFT_KEY,JSON.stringify(currentInput())); } catch (error) {}
+        S.solutionPicked = true;
+        showMissingFlag = false;
+        // The inputs panel appears now (Vasi #1) and which fields are required
+        // changes with the option (#2.2), so rebuild the controls and results.
+        var scrollY = window.scrollY;
+        clampAndRender();
+        window.scrollTo(0, scrollY);
+        try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
       });
     });
   }
 
+  function resultOptionTabsHtml() {
+    var picked = !!S.solutionPicked;
+    var singleActive = picked && S.attachmentSolution === "single";
+    var beamsActive = picked && S.attachmentSolution === "beams";
+    return '<div class="result-solution-tabs" role="tablist" aria-label="Choose attachment solution">'
+      + '<button type="button" role="tab" data-result-option="single" aria-selected="' + singleActive + '" tabindex="' + (!picked || singleActive ? '0' : '-1') + '"><span>OPTION 1:</span> Single-point attachment</button>'
+      + '<button type="button" role="tab" data-result-option="beams" aria-selected="' + beamsActive + '" tabindex="' + (beamsActive ? '0' : '-1') + '"><span>OPTION 2:</span> Walltopia support beams</button></div>';
+  }
+
+  // Title reflects the current selections; #3.1 fills the values in as they are chosen.
+  function resultHeadHtml() {
+    var u = U();
+    var typeLabel = selectedInputs.type ? (S.type === "wall" ? "Climbing wall" : "Boulder wall") : "Preliminary loads";
+    var title = typeLabel + (selectedInputs.height ? " " + fmtLen(S.height) : "");
+    var bits = [];
+    if (S.type === "wall" && selectedInputs.levels) bits.push(S.levels + (S.levels === 1 ? " attachment level" : " attachment levels"));
+    if (S.type === "boulder") bits.push("single attachment");
+    if (usesSpan() && selectedInputs.span) bits.push("span A = " + fmtLen(S.span));
+    if (selectedInputs.overhang) bits.push("overhang X = " + fmtLen(S.overhang));
+    bits.push((S.factored ? "factored" : "characteristic") + " values in " + u.force);
+    return '<div class="results-head"><div><p class="title">' + title + '</p><p class="sub">' + bits.join(" \u00b7 ") + '</p></div></div>';
+  }
+
+  // Shown in place of the load table while the drawing is already on screen.
+  function loadsLockedHtml() {
+    var missing = missingInputs();
+    return '<div class="loads-locked">'
+      + '<strong>' + (missing.length ? "Some inputs are still open" : "Loads are ready") + '</strong>'
+      + '<span>' + (missing.length
+          ? "Choose " + missing.map(function (k) { return FIELD_LABELS[k]; }).join(", ") + ", then press <b>View loads</b>."
+          : "Press <b>View loads</b> to calculate this configuration.") + '</span></div>';
+  }
+
   function renderResults() {
     var root = document.getElementById("result-root");
-    var ready = selectedInputs.units && selectedInputs.type && selectedInputs.height && selectedInputs.span && selectedInputs.overhang
-      && (S.type === "boulder" || (selectedInputs.levels && selectedInputs.force));
-    if (!ready) {
-      root.innerHTML = '<div class="empty">Select the calculator inputs to view the results.</div>';
+    applyLayoutState();
+    var picked = !!S.solutionPicked;
+
+    // Vasi #1: before an option is chosen the screen shows only the two options.
+    if (!picked) {
+      root.innerHTML = '<div class="results-reveal solution-chooser">'
+        + '<div class="results-head"><div><p class="title">Choose an attachment solution</p>'
+        + '<p class="sub">Pick Option 1 or Option 2 to configure the inputs and see the drawing.</p></div></div>'
+        + resultOptionTabsHtml()
+        + '<p class="result-solution-prompt">Option 1 connects the climbing wall directly to the existing structure.'
+        + ' Option 2 adds Walltopia support beams between the building columns.</p></div>';
+      wireResultOptionTabs();
       window.WTCalculatorPayload = null;
       return;
     }
-    var u = U();
-    var have = S.type === "boulder" ? !!boulderRow() : wallRows().length > 0;
-    if (!have) { root.innerHTML = '<div class="empty">No table entry for this combination.</div>'; return; }
 
-    var heightLbl = fmtLen(S.height);
-    var schemeLbl = S.type === "wall" ? (S.levels + (S.levels === 1 ? " attachment level" : " attachment levels")) : "single attachment";
-    var title = (S.type === "wall" ? "Climbing wall " : "Boulder wall ") + heightLbl;
-    var sub = schemeLbl + " · span A = " + fmtLen(S.span) + " · overhang X = " + fmtLen(S.overhang)
-            + " · characteristic values in " + u.force + (S.factored ? " · factored" : "");
+    // An option is picked: the drawing renders even with partial inputs; the load
+    // numbers, tables and capacity wait for View loads (#2.1, #3).
+    var revealed = loadsVisible();
+    var have = revealed ? (S.type === "boulder" ? !!boulderRow() : wallRows().length > 0) : true;
+    var noEntry = revealed && !have;
+    var shouldAutoScroll = revealed && !mobileResultsWasReady && mobileResultsAutoScrollEnabled && window.innerWidth <= 960;
+    mobileResultsWasReady = revealed;
 
-    var values = singlePointValues();
-    var columnValues = columnPointValues();
-    var html = '<div class="results-reveal"><div class="results-head">'
-      + '<div><p class="title">' + title + '</p><p class="sub">' + sub + '</p></div>'
-      + '</div><div class="result-solution-tabs" role="tablist" aria-label="Choose attachment solution">'
-      + '<button type="button" role="tab" data-result-option="single" aria-selected="' + (S.attachmentSolution==="single") + '" tabindex="' + (S.attachmentSolution==="single"?'0':'-1') + '"><span>OPTION 1:</span> Single-point attachment</button>'
-      + '<button type="button" role="tab" data-result-option="beams" aria-selected="' + (S.attachmentSolution==="beams") + '" tabindex="' + (S.attachmentSolution==="beams"?'0':'-1') + '"><span>OPTION 2:</span> Walltopia support beams</button></div>'
-      + '<section class="single-point-section" data-result-section="single"' + (S.attachmentSolution==="single"?'':' hidden') + '><div class="single-point-heading"><div><h2>Direct Single-Point Attachment</h2><p>The climbing wall is connected directly to the existing structure at individual attachment points.</p></div></div>'
-      + '<div class="single-point-grid' + (Number(S.levels) >= 3 ? ' is-three-levels' : '') + '"><div class="single-point-left">' + singlePointTableHtml(values) + singlePointConditionsHtml() + '</div>' + schematicPanelHtml() + '</div>'
-      + singleCapacityHtml() + notesHtml() + '</section>'
-      + '<section class="single-point-section column-point-section" data-result-section="beams"' + (S.attachmentSolution==="beams"?'':' hidden') + '><div class="single-point-heading"><div><h2>Walltopia Support Beams Between Building Columns</h2><p>Walltopia support beams are added between the existing building columns, and the climbing wall is attached to the beams.</p></div></div>'
-      + '<div class="column-point-body">' + columnPointTableHtml(columnValues) + columnPointConditionsHtml() + '<div id="attachment-config-root" data-visual-only="true"></div></div>'
-      + columnCapacityHtml() + notesHtml() + '</section></div>';
+    var showTables = revealed && have;
+    var values = showTables ? singlePointValues() : null;
+    var columnValues = showTables ? columnPointValues() : null;
+    var singleActive = S.attachmentSolution === "single";
+    var beamsActive = S.attachmentSolution === "beams";
+    var lockedNote = revealed
+      ? (noEntry ? '<div class="loads-locked"><strong>No table entry for this combination</strong><span>Pick a different span or overhang.</span></div>' : '')
+      : loadsLockedHtml();
+
+    var html = '<div class="results-reveal">' + resultHeadHtml() + resultOptionTabsHtml()
+      + '<section class="single-point-section" data-result-section="single"' + (singleActive ? '' : ' hidden') + '><div class="single-point-heading"><div><h2>Direct Single-Point Attachment</h2><p>The climbing wall is connected directly to the existing structure at individual attachment points.</p></div></div>'
+      + '<div class="single-point-grid' + (Number(S.levels) >= 3 ? ' is-three-levels' : '') + '"><div class="single-point-left">'
+      + (showTables ? singlePointTableHtml(values) : lockedNote) + singlePointConditionsHtml() + '</div>' + schematicPanelHtml() + '</div>'
+      + (showTables ? singleCapacityHtml() + notesHtml() : '') + '</section>'
+      + '<section class="single-point-section column-point-section" data-result-section="beams"' + (beamsActive ? '' : ' hidden') + '><div class="single-point-heading"><div><h2>Walltopia Support Beams Between Building Columns</h2><p>Walltopia support beams are added between the existing building columns, and the climbing wall is attached to the beams.</p></div></div>'
+      + '<div class="column-point-body">' + (showTables ? columnPointTableHtml(columnValues) : lockedNote)
+      + columnPointConditionsHtml() + '<div id="attachment-config-root" data-visual-only="true"></div></div>'
+      + (showTables ? columnCapacityHtml() + notesHtml() : '') + '</section></div>';
     root.innerHTML = html;
     wireSchematicView();
     wireSinglePointControls();
-    var calculatorPayload = { input: currentInput(), snapshot: currentSnapshot() };
+    var calculatorPayload = { input: currentInput(), snapshot: currentSnapshot(),
+      selected: Object.assign({}, selectedInputs), showForces: revealed };
     window.WTCalculatorPayload = calculatorPayload;
     window.dispatchEvent(new CustomEvent("wtcalculatorchange", { detail: calculatorPayload }));
     try { localStorage.setItem(CALCULATOR_DRAFT_KEY, JSON.stringify(currentInput())); } catch (error) {}
+    if (shouldAutoScroll) {
+      mobileResultsAutoScrollEnabled = false;
+      window.requestAnimationFrame(function () {
+        var header = document.querySelector(".masthead");
+        var headerOffset = header ? header.getBoundingClientRect().height : 0;
+        var targetTop = root.getBoundingClientRect().top + window.scrollY - headerOffset - 12;
+        window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+      });
+    }
   }
 
   function verdictHtml() {
@@ -1008,6 +1170,7 @@
       return { ll: Number(ll || 0), dl: Number(dl || 0) };
     }
     function reactionText(key, value) { return key + " = " + fmtForce(value) + " " + U().force; }
+    var showForces = loadsVisible();  // Vasi #2.1: load numbers wait for View loads
     var attachments = "", attachmentPoints = "", attachmentPointLabels = "", forces = "", heightDims = "";
     function horizontalReaction(key, value, y, kind, labelY) {
       var negative = value < 0, zero = Math.abs(value) < .000001;
@@ -1020,9 +1183,9 @@
       attachments += '<line class="side-support" x1="' + attachmentPlaneX + '" y1="' + y + '" x2="' + x + '" y2="' + y + '"/><path class="side-anchor" d="M' + attachmentPlaneX + ' ' + (y-9) + 'v18l10-9z"/>';
       attachmentPoints += '<circle class="side-attachment-detail-point' + (singlePointSelection.attachmentDetail ? '' : ' is-hidden') + '" data-side-level="' + n + '" cx="' + attachmentPlaneX + '" cy="' + y + '" r="7" tabindex="' + (singlePointSelection.attachmentDetail ? '0' : '-1') + '" role="button"><title>Attachment point X' + n + '</title></circle>';
       attachmentPointLabels += '<text class="side-point-label" x="' + (attachmentPlaneX + 12) + '" y="' + (y - 11) + '">X' + n + '</text>';
-      forces += horizontalReaction('RX' + n, rx.ll, y - 8, 'll', y - 15)
+      if (showForces) forces += horizontalReaction('RX' + n, rx.ll, y - 8, 'll', y - 15)
         + horizontalReaction('RX' + n, rx.dl, y + 8, 'dl', y + 22);
-      heightDims += '<line class="side-extension" x1="' + dimX + '" y1="' + y + '" x2="' + attachmentPlaneX + '" y2="' + y + '"/><line class="side-dimension" x1="' + dimX + '" y1="' + groundY + '" x2="' + dimX + '" y2="' + y + '"/><path class="side-tick" d="M' + (dimX-5) + ' ' + (groundY+5) + 'l10-10M' + (dimX-5) + ' ' + (y+5) + 'l10-10"/><text class="side-dim-label" x="' + (dimX-8) + '" y="' + ((groundY+y)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (dimX-8) + ' ' + ((groundY+y)/2) + ')">Z' + n + ' = ' + dimValue(z) + '</text>';
+      heightDims += '<line class="side-extension" x1="' + dimX + '" y1="' + y + '" x2="' + attachmentPlaneX + '" y2="' + y + '"/><line class="side-dimension" x1="' + dimX + '" y1="' + groundY + '" x2="' + dimX + '" y2="' + y + '"/><path class="side-tick" d="M' + (dimX-5) + ' ' + (groundY+5) + 'l10-10M' + (dimX-5) + ' ' + (y+5) + 'l10-10"/><text class="side-dim-label" x="' + (dimX-8) + '" y="' + ((groundY+y)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (dimX-8) + ' ' + ((groundY+y)/2) + ')">' + ((selectedInputs.height && (S.type === "boulder" || selectedInputs.levels)) ? 'Z' + n + ' = ' + dimValue(z) : 'Z' + n) + '</text>';
     });
     var rx0 = reaction("RX0"), rz0 = reaction("RZ0");
     function baseHorizontal(value, y, kind, labelY) {
@@ -1044,11 +1207,11 @@
       + '<line class="side-attachment-plane" x1="' + attachmentPlaneX + '" y1="' + topY + '" x2="' + attachmentPlaneX + '" y2="' + groundY + '"/>'
       + '<line class="side-surface" x1="' + baseX + '" y1="' + groundY + '" x2="' + topX + '" y2="' + topY + '"/>'
       + attachments + forces + heightDims
-      + '<line class="side-extension" x1="' + attachmentPlaneX + '" y1="' + topY + '" x2="' + attachmentPlaneX + '" y2="30"/><line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + topX + '" y2="30"/><line class="side-dimension" x1="' + attachmentPlaneX + '" y1="30" x2="' + topX + '" y2="30"/><path class="side-tick" d="M' + (attachmentPlaneX-5) + ' 35l10-10M' + (topX-5) + ' 35l10-10"/><text class="side-overhang-label" x="' + ((attachmentPlaneX+topX)/2) + '" y="20" text-anchor="middle">X = ' + dimValue(overhang) + ' (overhang)</text>'
-      + '<line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + wallDimX + '" y2="' + topY + '"/><line class="side-dimension" x1="' + wallDimX + '" y1="' + groundY + '" x2="' + wallDimX + '" y2="' + topY + '"/><path class="side-tick" d="M' + (wallDimX-5) + ' ' + (groundY+5) + 'l10-10M' + (wallDimX-5) + ' ' + (topY+5) + 'l10-10"/><text class="side-wall-height" x="' + (wallDimX+15) + '" y="' + ((groundY+topY)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (wallDimX+15) + ' ' + ((groundY+topY)/2) + ')">Climbing wall height = ' + dimValue(wallHeight) + '</text>'
+      + '<line class="side-extension" x1="' + attachmentPlaneX + '" y1="' + topY + '" x2="' + attachmentPlaneX + '" y2="30"/><line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + topX + '" y2="30"/><line class="side-dimension" x1="' + attachmentPlaneX + '" y1="30" x2="' + topX + '" y2="30"/><path class="side-tick" d="M' + (attachmentPlaneX-5) + ' 35l10-10M' + (topX-5) + ' 35l10-10"/><text class="side-overhang-label" x="' + ((attachmentPlaneX+topX)/2) + '" y="20" text-anchor="middle">' + (selectedInputs.overhang ? 'X = ' + dimValue(overhang) : 'X') + ' (overhang)</text>'
+      + '<line class="side-extension" x1="' + topX + '" y1="' + topY + '" x2="' + wallDimX + '" y2="' + topY + '"/><line class="side-dimension" x1="' + wallDimX + '" y1="' + groundY + '" x2="' + wallDimX + '" y2="' + topY + '"/><path class="side-tick" d="M' + (wallDimX-5) + ' ' + (groundY+5) + 'l10-10M' + (wallDimX-5) + ' ' + (topY+5) + 'l10-10"/><text class="side-wall-height" x="' + (wallDimX+15) + '" y="' + ((groundY+topY)/2) + '" text-anchor="middle" transform="rotate(-90 ' + (wallDimX+15) + ' ' + ((groundY+topY)/2) + ')">' + (selectedInputs.height ? 'Climbing wall height = ' + dimValue(wallHeight) : 'Climbing wall height') + '</text>'
       + '<text class="side-surface-label" x="' + surfaceLabelX + '" y="' + surfaceLabelY + '" text-anchor="middle" transform="rotate(' + surfaceAngle + ' ' + surfaceLabelX + ' ' + surfaceLabelY + ')">Climbing surface</text>'
-      + (S.type === "wall" ? baseHorizontal(rx0.ll, 446, 'll', 488) + baseHorizontal(rx0.dl, 462, 'dl', 504) : "")
-      + baseVertical(rz0.ll, 197, 'll', 340) + baseVertical(rz0.dl, 213, 'dl', 354)
+      + (showForces && S.type === "wall" ? baseHorizontal(rx0.ll, 446, 'll', 488) + baseHorizontal(rx0.dl, 462, 'dl', 504) : "")
+      + (showForces ? baseVertical(rz0.ll, 197, 'll', 340) + baseVertical(rz0.dl, 213, 'dl', 354) : "")
       + '<g class="side-axis"><line x1="26" y1="468" x2="26" y2="420" marker-end="url(#side-force-arrow)"/><line x1="26" y1="468" x2="80" y2="468" marker-end="url(#side-force-arrow)"/><text x="5" y="420">+Z</text><text x="65" y="488">+X</text></g>'
       + attachmentPointLabels
       + '<text class="side-point-label" x="' + (baseX - 12) + '" y="' + (groundY - 13) + '" text-anchor="end">X0</text>'
@@ -1065,7 +1228,7 @@
       + '<ol>'
       + '<li>Coefficient for dead load = <b>' + u.dl + '</b>.</li>'
       + '<li>Coefficient for live load = <b>' + u.ll + '</b>.</li>'
-      + '<li>All loads are characteristic values and are expressed in <b>' + u.force + '</b>. Refer to the positive directions of the coordinate system when interpreting their signs.</li>'
+      + '<li>All loads are ' + (S.factored ? 'factored values' : 'characteristic values') + ' and are expressed in <b>' + u.force + '</b>. Refer to the positive directions of the coordinate system when interpreting their signs.</li>'
       + '<li>The application manual is an inseparable part of the load tables. For additional information, consult Walltopia.</li>'
       + '<li><span class="code">Used code: ' + code + '.</span></li>'
       + '</ol></div>';
@@ -1081,10 +1244,11 @@
       overhang: S.overhang, span: S.span, force: S.force, factored: S.factored,
       capacity: S.cap, baseCapacity: S.baseCapacity, sideCapacity: S.sideCapacity,
       columnCapacities: S.columnCapacities,
-      attachmentSolution: S.attachmentSolution,
+      attachmentSolution: S.attachmentSolution, solutionPicked: S.solutionPicked, loadsRequested: S.loadsRequested,
       supportingSlab: singlePointSelection.slab, baseDetail: singlePointSelection.detail,
       supportingStructure: singlePointSelection.support, attachmentDetail: singlePointSelection.attachmentDetail,
-      columnSupportingStructure: columnPointSelection.support, columnAttachmentDetail: columnPointSelection.attachmentDetail };
+      columnSupportingStructure: columnPointSelection.support, columnAttachmentDetail: columnPointSelection.attachmentDetail,
+      columnSupportingSlab: columnPointSelection.slab, columnBaseDetail: columnPointSelection.detail };
   }
   function applyInput(inp) {
     if (!inp) return;
@@ -1096,10 +1260,16 @@
     S.sideCapacity = inp.sideCapacity !== undefined && inp.sideCapacity !== null ? Number(inp.sideCapacity) : null;
     S.columnCapacities = inp.columnCapacities && typeof inp.columnCapacities === "object" ? inp.columnCapacities : {};
     S.attachmentSolution = inp.attachmentSolution === "beams" ? "beams" : "single";
+    // A restored draft or project already carries a decision; only a fresh
+    // calculator starts with the results closed.
+    S.solutionPicked = !!inp.solutionPicked;
+    S.loadsRequested = inp.loadsRequested !== undefined && inp.loadsRequested !== null ? !!inp.loadsRequested : !!inp.solutionPicked;
     if (inp.supportingSlab) singlePointSelection.slab = inp.supportingSlab;
     if (inp.baseDetail) singlePointSelection.detail = inp.baseDetail;
     if (inp.supportingStructure) singlePointSelection.support = inp.supportingStructure;
     if (inp.attachmentDetail) singlePointSelection.attachmentDetail = inp.attachmentDetail;
+    if (inp.columnSupportingSlab) columnPointSelection.slab = inp.columnSupportingSlab;
+    if (inp.columnBaseDetail) columnPointSelection.detail = inp.columnBaseDetail;
     if (inp.columnSupportingStructure) columnPointSelection.support = inp.columnSupportingStructure;
     if (inp.columnAttachmentDetail) columnPointSelection.attachmentDetail = inp.columnAttachmentDetail;
     var capacityInput = document.getElementById("cap-input");
@@ -1121,13 +1291,10 @@
       hasCapacityCheck=true;
       if (totalHorizontalReaction().value>Number(S.sideCapacity)) allCapacityChecksPass=false;
     }
-    for (var checkedLevel = 1; checkedLevel <= columnLevelCount(); checkedLevel++) {
-      var checkedKey = "LX" + checkedLevel;
-      var checkedCapacity = S.columnCapacities[checkedKey];
-      if (checkedCapacity !== undefined && checkedCapacity !== null && !isNaN(checkedCapacity)) {
-        hasCapacityCheck = true;
-        if (governingLX(checkedLevel).value > Number(checkedCapacity)) allCapacityChecksPass = false;
-      }
+    var columnCapacity = S.columnCapacities.total;
+    if (columnCapacity !== undefined && columnCapacity !== null && !isNaN(columnCapacity)) {
+      hasCapacityCheck = true;
+      if (totalColumnHorizontalReaction().value > Number(columnCapacity)) allCapacityChecksPass = false;
     }
     var verdict = !hasCapacityCheck ? "neutral" : (allCapacityChecksPass ? "ok" : "bad");
     var title = (S.type === "wall" ? "Climbing wall " : "Boulder wall ") + fmtLen(S.height);
@@ -1302,6 +1469,12 @@
       var res = await window.WTApi.getProject(id);
       P = res.project;
       applyInput(P.input);
+      // Opening a saved project is not entering a new calculation: the design was
+      // already decided when it was saved, so the results open straight away. The
+      // server also drops `solutionPicked` (it is not in the stored-input
+      // whitelist), so it cannot be recovered from the record itself.
+      S.solutionPicked = true;
+      S.loadsRequested = true;
       clampAndRender();
       renderProjectBar();
       if (new URLSearchParams(location.search).get("export") === "pdf") {
@@ -1333,6 +1506,15 @@
   document.getElementById("chk-factored").addEventListener("change", function (e) {
     S.factored = e.target.checked; renderResults();
   });
+  var viewLoadsButton = document.getElementById("view-loads");
+  if (viewLoadsButton) viewLoadsButton.addEventListener("click", function () {
+    // Arm the reveal (Vasi #3): the loads show as soon as every required input
+    // is chosen; until then the missing fields glow red.
+    showMissingFlag = true;
+    S.loadsRequested = true;
+    mobileResultsAutoScrollEnabled = true;
+    clampAndRender();
+  });
   function resetCalculator(scrollToTop) {
     S.units = "EU";
     S.type = "wall";
@@ -1347,8 +1529,11 @@
     S.sideCapacity = null;
     S.columnCapacities = {};
     S.attachmentSolution = "single";
+    S.solutionPicked = false;
+    S.loadsRequested = false;
+    showMissingFlag = false;
     singlePointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
-    columnPointSelection = { support: null, attachmentDetail: null };
+    columnPointSelection = { slab: null, detail: null, support: null, attachmentDetail: null };
     Object.keys(selectedInputs).forEach(function (key) { selectedInputs[key] = false; });
     schematicView = { scale: 1, panX: 0, panY: 0 };
     P = null;

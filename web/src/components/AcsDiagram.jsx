@@ -3,7 +3,7 @@ import { acsGeometry } from "../lib/acsGeometry";
 
 // Interactive ACS geometry — redraws from the live calculator selection (A, X, height, Z levels),
 // with a one-time draw-on intro and continuously flowing load arrows.
-export default function AcsDiagram({ a, x, height, zValues }) {
+export default function AcsDiagram({ a, x, height, zValues, showLoads = true, supportingSlab = null, extraColumns = false }) {
   const [intro, setIntro] = useState(true);
   useEffect(() => { const t = setTimeout(() => setIntro(false), 2600); return () => clearTimeout(t); }, []);
   const g = acsGeometry(a, x, height, zValues);
@@ -21,9 +21,11 @@ export default function AcsDiagram({ a, x, height, zValues }) {
         </g>
         <polygon className="acs-contour" points={g.contourPolygon} />
         <polyline className="acs-top-contour" points={g.topContour} />
+        {extraColumns && g.columns.map((c, i) => <rect key={i} className="acs-extra-column" x={c.x + (i === 0 ? 34 : -34)} y={c.y + 22} width={c.w} height={c.h - 22} />)}
         {g.beams.map((b, i) => <line key={i} className="acs-beam" x1={b.x1} y1={b.y1} x2={b.x2} y2={b.y2} />)}
-        {g.points.map((p, i) => <circle key={i} className="acs-point" cx={p.cx} cy={p.cy} r="6" />)}
-        {g.forces.map((f, i) => (
+        {supportingSlab && <circle className="acs-slab" cx={supportingSlab === "left" ? g.columns[0].x + g.columns[0].w / 2 : g.columns[g.columns.length - 1].x + g.columns[g.columns.length - 1].w / 2} cy={g.columns[0].y + g.columns[0].h - 18} r="11" />}
+        {showLoads && g.points.map((p, i) => <circle key={i} className="acs-point" cx={p.cx} cy={p.cy} r="6" />)}
+        {showLoads && g.forces.map((f, i) => (
           <g key={i}>
             <line className="acs-force" x1={f.x1} y1={f.y1} x2={f.x2} y2={f.y2} markerEnd="url(#acs-arrow)" />
             <text className="acs-force-label" x={f.lx} y={f.ly}>{f.label}</text>
